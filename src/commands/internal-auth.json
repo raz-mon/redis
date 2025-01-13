@@ -1,0 +1,31 @@
+{
+    "INTERNALAUTH": {
+        "summary": "Initiates an internal connection.",
+        "complexity": "O(1)",
+        "group": "connection",
+        "since": "8.0.0",
+        "arity": 2,
+        "function": "internalAuthCommand",
+        "command_flags": [
+            "NOSCRIPT",
+            "LOADING",
+            "STALE",
+            "FAST",
+            "NO_AUTH",
+            "SENTINEL",
+            "ALLOW_BUSY"
+        ],
+        "acl_categories": [
+            "CONNECTION"
+        ],
+        "reply_schema": {
+            "const": "OK"
+        },
+        "arguments": [
+            {
+                "name": "password",
+                "type": "string"
+            }
+        ]
+    }
+}

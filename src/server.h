@@ -225,6 +225,7 @@ extern int configOOMScoreAdjValuesDefaults[CONFIG_OOM_COUNT];
 #define CMD_ALLOW_BUSY ((1ULL<<26))
 #define CMD_MODULE_GETCHANNELS (1ULL<<27)  /* Use the modules getchannels interface. */
 #define CMD_TOUCHES_ARBITRARY_KEYS (1ULL<<28)
+#define CMD_INTERNAL (1ULL<<29) /* Internal command. */
 
 /* Command flags that describe ACLs categories. */
 #define ACL_CATEGORY_KEYSPACE (1ULL<<0)
@@ -396,6 +397,7 @@ extern int configOOMScoreAdjValuesDefaults[CONFIG_OOM_COUNT];
 #define CLIENT_MODULE_PREVENT_REPL_PROP (1ULL<<49) /* Module client do not want to propagate to replica */
 #define CLIENT_REPROCESSING_COMMAND (1ULL<<50) /* The client is re-processing the command. */
 #define CLIENT_REPL_RDB_CHANNEL (1ULL<<51)      /* Client which is used for rdb delivery as part of rdb channel replication */
+#define CLIENT_INTERNAL (1ULL<<51) /* Internal client connection */
 
 /* Any flag that does not let optimize FLUSH SYNC to run it in bg as blocking client ASYNC */
 #define CLIENT_AVOID_BLOCKING_ASYNC_FLUSH (CLIENT_DENY_BLOCKING|CLIENT_MULTI|CLIENT_LUA_DEBUG|CLIENT_LUA_DEBUG_SYNC|CLIENT_MODULE)
@@ -1646,6 +1648,8 @@ typedef enum childInfoType {
     CHILD_INFO_TYPE_MODULE_COW_SIZE
 } childInfoType;
 
+#define INTERNAL_SECRET_LEN 10
+
 struct redisServer {
     /* General */
     pid_t pid;                  /* Main process pid. */
@@ -2186,6 +2190,8 @@ struct redisServer {
     int reply_buffer_resizing_enabled; /* Is reply buffer resizing enabled (1 by default) */
     /* Local environment */
     char *locale_collate;
+    /* Internal secret */
+    char internal_secret[INTERNAL_SECRET_LEN];
 };
 
 /* we use 6 so that all getKeyResult fits a cacheline */
@@ -3720,6 +3726,7 @@ char *redisBuildIdString(void);
 
 /* Commands prototypes */
 void authCommand(client *c);
+void internalAuthCommand(client *c);
 void pingCommand(client *c);
 void echoCommand(client *c);
 void commandCommand(client *c);
@@ -3987,6 +3994,7 @@ void lcsCommand(client *c);
 void quitCommand(client *c);
 void resetCommand(client *c);
 void failoverCommand(client *c);
+char* getInternalSecret(void);
 
 #if defined(__GNUC__)
 void *calloc(size_t count, size_t size) __attribute__ ((deprecated));

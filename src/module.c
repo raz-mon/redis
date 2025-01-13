@@ -1151,6 +1151,7 @@ int64_t commandFlagsFromString(char *s) {
         else if (!strcasecmp(t,"no-cluster")) flags |= CMD_MODULE_NO_CLUSTER;
         else if (!strcasecmp(t,"no-mandatory-keys")) flags |= CMD_NO_MANDATORY_KEYS;
         else if (!strcasecmp(t,"allow-busy")) flags |= CMD_ALLOW_BUSY;
+        else if (!strcasecmp(t, "internal")) flags |= CMD_INTERNAL;
         else break;
     }
     sdsfreesplitres(tokens,count);
@@ -13378,6 +13379,12 @@ int RM_RdbSave(RedisModuleCtx *ctx, RedisModuleRdbStream *stream, int flags) {
     return REDISMODULE_OK;
 }
 
+const char* RM_GetInternalSecret(RedisModuleCtx *ctx, size_t *len) {
+    UNUSED(ctx);
+    if (len) *len = INTERNAL_SECRET_LEN;
+    return getInternalSecret();
+}
+
 /* Redis MODULE command.
  *
  * MODULE LIST
@@ -14319,4 +14326,5 @@ void moduleRegisterCoreAPI(void) {
     REGISTER_API(RdbStreamFree);
     REGISTER_API(RdbLoad);
     REGISTER_API(RdbSave);
+    REGISTER_API(GetInternalSecret);
 }

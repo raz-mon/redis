@@ -11,6 +11,7 @@
 #define CLUSTER_OK 0            /* Everything looks ok */
 #define CLUSTER_FAIL 1          /* The cluster can't work */
 #define CLUSTER_NAMELEN 40      /* sha1 hex length */
+#define CLUSTER_INTERNAL_SECRET 40 /* Internal secret size of the node */
 
 /* Redirection errors returned by getNodeByQuery(). */
 #define CLUSTER_REDIR_NONE 0          /* Node can serve the request. */

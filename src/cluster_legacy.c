@@ -514,6 +514,9 @@ int clusterLoadConfig(char *filename) {
                 serverAssert(server.cluster->myself == NULL);
                 myself = server.cluster->myself = n;
                 n->flags |= CLUSTER_NODE_MYSELF;
+                n->internal_secret = zmalloc((CLUSTER_INTERNAL_SECRET + 1) * sizeof(char));
+                getRandomHexChars(n->internal_secret, CLUSTER_INTERNAL_SECRET);
+                n->internal_secret[CLUSTER_INTERNAL_SECRET] = '\0';
             } else if (!strcasecmp(s,"master")) {
                 n->flags |= CLUSTER_NODE_MASTER;
             } else if (!strcasecmp(s,"slave")) {
@@ -1321,6 +1324,13 @@ clusterNode *createClusterNode(char *nodename, int flags) {
     else
         getRandomHexChars(node->name, CLUSTER_NAMELEN);
     getRandomHexChars(node->shard_id, CLUSTER_NAMELEN);
+    if (flags & CLUSTER_NODE_MYSELF) {
+        node->internal_secret = zmalloc((CLUSTER_INTERNAL_SECRET + 1) * sizeof(char));
+        getRandomHexChars(node->internal_secret, CLUSTER_INTERNAL_SECRET);
+        node->internal_secret[CLUSTER_INTERNAL_SECRET] = '\0';
+    } else {
+        node->internal_secret = NULL;
+    }
     node->ctime = mstime();
     node->configEpoch = 0;
     node->flags = flags;
@@ -2181,6 +2191,11 @@ void clusterProcessGossipSection(clusterMsg *hdr, clusterLink *link) {
                 node->tls_port = msg_tls_port;
                 node->cport = ntohs(g->cport);
                 node->flags &= ~CLUSTER_NODE_NOADDR;
+                if (g->internal_secret[0] != '\0') {
+                    node->internal_secret = zmalloc(sizeof(char) * (CLUSTER_INTERNAL_SECRET + 1));
+                    memcpy(node->internal_secret, g->internal_secret, CLUSTER_INTERNAL_SECRET);
+                    node->internal_secret[CLUSTER_INTERNAL_SECRET] = '\0';
+                }
             }
         } else if (!node) {
             /* If it's not in NOADDR state and we don't have it, we
@@ -2204,6 +2219,11 @@ void clusterProcessGossipSection(clusterMsg *hdr, clusterLink *link) {
                 node->cport = ntohs(g->cport);
                 clusterAddNode(node);
                 clusterAddNodeToShard(node->shard_id, node);
+                if (g->internal_secret[0] != '\0') {
+                    node->internal_secret = zmalloc(sizeof(char) * (CLUSTER_INTERNAL_SECRET + 1));
+                    memcpy(node->internal_secret, g->internal_secret, CLUSTER_INTERNAL_SECRET);
+                    node->internal_secret[CLUSTER_INTERNAL_SECRET] = '\0';
+                }
             }
         }
 
@@ -2280,6 +2300,12 @@ int nodeUpdateAddressIfNeeded(clusterNode *node, clusterLink *link,
      * replication target as well. */
     if (nodeIsSlave(myself) && myself->slaveof == node)
         replicationSetMaster(node->ip, getNodeDefaultReplicationPort(node));
+
+    if (hdr->internal_secret[0] != '\0') {
+        node->internal_secret = zmalloc(sizeof(char) * (CLUSTER_INTERNAL_SECRET + 1));
+        memcpy(node->internal_secret, hdr->internal_secret, CLUSTER_INTERNAL_SECRET);
+        node->internal_secret[CLUSTER_INTERNAL_SECRET] = '\0';
+    }
     return 1;
 }
 
@@ -2608,6 +2634,7 @@ void clusterProcessPingExtensions(clusterMsg *hdr, clusterLink *link) {
     char *ext_hostname = NULL;
     char *ext_humannodename = NULL;
     char *ext_shardid = NULL;
+    char *internal_secret = NULL;
     uint16_t extensions = ntohs(hdr->extensions);
     /* Loop through all the extensions and process them */
     clusterMsgPingExt *ext = getInitialPingExt(hdr, ntohs(hdr->count));
@@ -2634,6 +2661,8 @@ void clusterProcessPingExtensions(clusterMsg *hdr, clusterLink *link) {
         } else if (type == CLUSTERMSG_EXT_TYPE_SHARDID) {
             clusterMsgPingExtShardId *shardid_ext = (clusterMsgPingExtShardId *) &(ext->ext[0].shard_id);
             ext_shardid = shardid_ext->shard_id;
+        } else if (type == CLUSTERMSG_EXT_TYPE_INTERNAL_SECRET) {
+            // TDB - Save the internal secret of the node
         } else {
             /* Unknown type, we will ignore it but log what happened. */
             serverLog(LL_WARNING, "Received unknown extension type %d", type);
@@ -2908,6 +2937,11 @@ int clusterProcessPacket(clusterLink *link) {
                 /* First thing to do is replacing the random name with the
                  * right node name if this was a handshake stage. */
                 clusterRenameNode(link->node, hdr->sender);
+                if (hdr->internal_secret[0] != '\0') {
+                    link->node->internal_secret = zmalloc(sizeof(char) * (CLUSTER_INTERNAL_SECRET + 1));
+                    memcpy(link->node->internal_secret, hdr->internal_secret, CLUSTER_INTERNAL_SECRET);
+                    link->node->internal_secret[CLUSTER_INTERNAL_SECRET] = '\0';
+                }
                 serverLog(LL_DEBUG,"Handshake with node %.40s completed.",
                     link->node->name);
                 link->node->flags &= ~CLUSTER_NODE_HANDSHAKE;
@@ -3527,6 +3561,11 @@ static void clusterBuildMessageHdr(clusterMsg *hdr, int type, size_t msglen) {
     memset(hdr->slaveof,0,CLUSTER_NAMELEN);
     if (myself->slaveof != NULL)
         memcpy(hdr->slaveof,myself->slaveof->name, CLUSTER_NAMELEN);
+    if (myself->internal_secret) {
+        memcpy(hdr->internal_secret, myself->internal_secret, CLUSTER_INTERNAL_SECRET);
+    } else {
+        hdr->internal_secret[0] = '\0';
+    }
     if (server.tls_cluster) {
         hdr->port = htons(announced_tls_port);
         hdr->pport = htons(announced_tcp_port);
@@ -3577,6 +3616,12 @@ void clusterSetGossipEntry(clusterMsg *hdr, int i, clusterNode *n) {
     gossip->cport = htons(n->cport);
     gossip->flags = htons(n->flags);
     gossip->notused1 = 0;
+    serverLog(LL_NOTICE, "Generating gossip message with internal secret %s on %d", n->internal_secret, n->cport);
+    if (n->internal_secret) {
+        memcpy(gossip->internal_secret, n->internal_secret, CLUSTER_INTERNAL_SECRET);
+    } else {
+        gossip->internal_secret[0] = '\0';
+    }
 }
 
 /* Send a PING or PONG packet to the specified node, making sure to add enough

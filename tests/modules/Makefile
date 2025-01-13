@@ -28,6 +28,7 @@ TEST_MODULES = \
     basics.so \
     testrdb.so \
     fork.so \
+    internalsecret.so \
     infotest.so \
     propagate.so \
     misc.so \

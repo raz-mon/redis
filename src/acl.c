@@ -1889,6 +1889,10 @@ int ACLCheckAllUserCommandPerm(user *u, struct redisCommand *cmd, robj **argv, i
 
 /* High level API for checking if a client can execute the queued up command */
 int ACLCheckAllPerm(client *c, int *idxptr) {
+    /* Internal connections bypass the ACL valiation */
+    if (c->flags & CLIENT_INTERNAL) {
+        return ACL_OK;
+    }
     return ACLCheckAllUserCommandPerm(c->user, c->cmd, c->argv, c->argc, idxptr);
 }
 
@@ -3237,6 +3241,37 @@ void authCommand(client *c) {
         addAuthErrReply(c, err);
     }
     if (err) decrRefCount(err);
+}
+
+/* INTERNALAUTH <password>
+ *
+ * Initiates an internal connection, that is able to execute internal flagged
+ * commands */
+void internalAuthCommand(client *c) {
+    /* Only two or three argument forms are allowed. */
+    if (c->argc > 2) {
+        addReplyErrorObject(c,shared.syntaxerr);
+        return;
+    }
+    /* Always redact the second argument (password) */
+    redactClientCommandArgument(c, 1);
+
+    robj *password = c->argv[1];
+
+    // Get internal secret
+    char *internal_secret = getInternalSecret();
+    if (sdslen(password->ptr) != INTERNAL_SECRET_LEN) {
+        addReplyError(c, "-WRONGPASS invalid internal password");
+        return;
+    }
+    if (!memcmp(internal_secret, password->ptr, INTERNAL_SECRET_LEN)) {
+        c->flags |= CLIENT_INTERNAL;
+        // No further authentication is needed.
+        c->authenticated = 1;
+        addReply(c, shared.ok);
+    } else {
+        addReplyError(c, "-WRONGPASS invalid internal password");
+    }
 }
 
 /* Set the password for the "default" ACL user. This implements supports for

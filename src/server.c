@@ -2227,6 +2227,14 @@ void initServerConfig(void) {
 
     /* Debugging */
     server.watchdog_period = 0;
+
+    /* Initialize internal secret */
+    getRandomHexChars(server.internal_secret,INTERNAL_SECRET_LEN);
+}
+
+char* getInternalSecret(void) {
+    // TODO: Change to be the elected password.
+    return server.internal_secret;
 }
 
 extern char **environ;
@@ -3438,7 +3446,7 @@ void preventCommandReplication(client *c) {
 /* Log the last command a client executed into the slowlog. */
 void slowlogPushCurrentCommand(client *c, struct redisCommand *cmd, ustime_t duration) {
     /* Some commands may contain sensitive data that should not be available in the slowlog. */
-    if (cmd->flags & CMD_SKIP_SLOWLOG)
+    if (cmd->flags & (CMD_SKIP_SLOWLOG|CMD_INTERNAL))
         return;
 
     /* If command argument vector was rewritten, use the original
@@ -3713,7 +3721,7 @@ void call(client *c, int flags) {
      * Other exceptions is a client which is unblocked and retrying to process the command
      * or we are currently in the process of loading AOF. */
     if (update_command_stats && !reprocessing_command &&
-        !(c->cmd->flags & (CMD_SKIP_MONITOR|CMD_ADMIN))) {
+        !(c->cmd->flags & (CMD_SKIP_MONITOR|CMD_ADMIN|CMD_INTERNAL))) {
         robj **argv = c->original_argv ? c->original_argv : c->argv;
         int argc = c->original_argv ? c->original_argc : c->argc;
         replicationFeedMonitors(c,server.monitors,c->db->id,argv,argc);
@@ -4068,6 +4076,14 @@ int processCommand(client *c) {
         sds msg = getAclErrorMessage(acl_retval, c->user, c->cmd, c->argv[acl_errpos]->ptr, 0);
         rejectCommandFormat(c, "-NOPERM %s", msg);
         sdsfree(msg);
+        return C_OK;
+    }
+
+    if ((c->cmd->flags & CMD_INTERNAL) && !((c->flags & CLIENT_INTERNAL) || mustObeyClient(c))) {
+        sds err = sdsnew(NULL);
+        err = sdscatprintf(err, "unknown command '%.128s'", (char*)c->argv[0]->ptr);
+        rejectCommandFormat(c, "-ERR %s", err);
+        sdsfree(err);
         return C_OK;
     }
 
