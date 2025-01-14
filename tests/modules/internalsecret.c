@@ -27,13 +27,12 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) 
     if (RedisModule_Init(ctx,"testinternalsecret",1,REDISMODULE_APIVER_1)
         == REDISMODULE_ERR) return REDISMODULE_ERR;
 
-    /* WARNING: A module shoule NEVER expose the internal secret - this is for
+    /* WARNING: A module should NEVER expose the internal secret - this is for
      * testing purposes only. */
     if (RedisModule_CreateCommand(ctx,"internalauth.getinternalsecret",
         InternalAuth_GetInternalSecret,"",0,0,0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
-    /* */
     if (RedisModule_CreateCommand(ctx,"internalauth.internalcommand",
         InternalAuth_InternalCommand,"internal",0,0,0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;

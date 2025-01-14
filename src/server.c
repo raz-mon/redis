@@ -4711,8 +4711,9 @@ void timeCommand(client *c) {
     addReplyBulkLongLong(c, server.ustime-((long long)server.unixtime)*1000000);
 }
 
+/* Reply with an internal command only if the client is internal. */
 bool shouldReplyCommandInternal(client *c, struct redisCommand *cmd) {
-    return !(cmd->flags & CMD_INTERNAL) || (c->flags & CLIENT_INTERNAL);
+    return (!(cmd->flags & CMD_INTERNAL)) || (c->flags & CLIENT_INTERNAL);
 }
 
 typedef struct replyFlagNames {
@@ -5053,7 +5054,7 @@ void addReplyCommandSubCommands(client *c, struct redisCommand *cmd, void (*repl
 
 /* Output the representation of a Redis command. Used by the COMMAND command and COMMAND INFO. */
 void addReplyCommandInfo(client *c, struct redisCommand *cmd) {
-    if (!cmd) {
+    if (!cmd || !shouldReplyCommandInternal(c, cmd)) {
         addReplyNull(c);
     } else {
         int firstkey = 0, lastkey = 0, keystep = 0;
@@ -5157,7 +5158,7 @@ void getKeysSubcommandImpl(client *c, int with_flags) {
     getKeysResult result = GETKEYS_RESULT_INIT;
     int j;
 
-    if (!cmd) {
+    if (!cmd || !shouldReplyCommandInternal(c, cmd)) {
         addReplyError(c,"Invalid command specified");
         return;
     } else if (!doesCommandHaveKeys(cmd)) {
@@ -5205,13 +5206,19 @@ void getKeysSubcommand(client *c) {
 void commandCommand(client *c) {
     dictIterator *di;
     dictEntry *de;
+    int numcmds = 0;
 
-    addReplyArrayLen(c, dictSize(server.commands));
+    void *replylen = addReplyDeferredLen(c);
     di = dictGetIterator(server.commands);
     while ((de = dictNext(di)) != NULL) {
-        addReplyCommandInfo(c, dictGetVal(de));
+        struct redisCommand *cmd = dictGetVal(de);
+        if (shouldReplyCommandInternal(c, cmd)) {
+            addReplyCommandInfo(c, cmd);
+            numcmds++;
+        }
     }
     dictReleaseIterator(di);
+    setDeferredMapLen(c,replylen,numcmds);
 }
 
 /* COMMAND COUNT */
@@ -5350,12 +5357,18 @@ void commandInfoCommand(client *c) {
     if (c->argc == 2) {
         dictIterator *di;
         dictEntry *de;
-        addReplyArrayLen(c, dictSize(server.commands));
+        int numcmds = 0;
+        void *replylen = addReplyDeferredLen(c);
         di = dictGetIterator(server.commands);
         while ((de = dictNext(di)) != NULL) {
-            addReplyCommandInfo(c, dictGetVal(de));
+            struct redisCommand *cmd = dictGetVal(de);
+            if (shouldReplyCommandInternal(c, cmd)) {
+                addReplyCommandInfo(c, cmd);
+                numcmds++;
+            }
         }
         dictReleaseIterator(di);
+        setDeferredMapLen(c,replylen,numcmds);
     } else {
         addReplyArrayLen(c, c->argc-2);
         for (i = 2; i < c->argc; i++) {
@@ -5367,25 +5380,30 @@ void commandInfoCommand(client *c) {
 /* COMMAND DOCS [command-name [command-name ...]] */
 void commandDocsCommand(client *c) {
     int i;
+    int numcmds = 0;
     if (c->argc == 2) {
         /* Reply with an array of all commands */
         dictIterator *di;
         dictEntry *de;
-        addReplyMapLen(c, dictSize(server.commands));
+        // addReplyMapLen(c, dictSize(server.commands));
+        void *replylen = addReplyDeferredLen(c);
         di = dictGetIterator(server.commands);
         while ((de = dictNext(di)) != NULL) {
             struct redisCommand *cmd = dictGetVal(de);
-            addReplyBulkCBuffer(c, cmd->fullname, sdslen(cmd->fullname));
-            addReplyCommandDocs(c, cmd);
+            if (shouldReplyCommandInternal(c, cmd)) {
+                addReplyBulkCBuffer(c, cmd->fullname, sdslen(cmd->fullname));
+                addReplyCommandDocs(c, cmd);
+                numcmds++;
+            }
         }
         dictReleaseIterator(di);
+        setDeferredMapLen(c,replylen,numcmds);
     } else {
         /* Reply with an array of the requested commands (if we find them) */
-        int numcmds = 0;
         void *replylen = addReplyDeferredLen(c);
         for (i = 2; i < c->argc; i++) {
             struct redisCommand *cmd = lookupCommandBySds(c->argv[i]->ptr);
-            if (!cmd)
+            if (!cmd || !shouldReplyCommandInternal(c, cmd))
                 continue;
             addReplyBulkCBuffer(c, cmd->fullname, sdslen(cmd->fullname));
             addReplyCommandDocs(c, cmd);

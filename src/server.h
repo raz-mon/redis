@@ -1648,8 +1648,6 @@ typedef enum childInfoType {
     CHILD_INFO_TYPE_MODULE_COW_SIZE
 } childInfoType;
 
-#define INTERNAL_SECRET_LEN 10
-
 struct redisServer {
     /* General */
     pid_t pid;                  /* Main process pid. */
@@ -2190,8 +2188,6 @@ struct redisServer {
     int reply_buffer_resizing_enabled; /* Is reply buffer resizing enabled (1 by default) */
     /* Local environment */
     char *locale_collate;
-    /* Internal secret */
-    char internal_secret[INTERNAL_SECRET_LEN];
 };
 
 /* we use 6 so that all getKeyResult fits a cacheline */
