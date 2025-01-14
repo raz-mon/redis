@@ -115,7 +115,6 @@ typedef struct {
     uint16_t flags;             /* node->flags copy */
     uint16_t pport;             /* secondary port last time it was seen */
     uint16_t notused1;
-    char internal_secret[CLUSTER_INTERNAL_SECRET];
 } clusterMsgDataGossip;
 
 typedef struct {
@@ -149,7 +148,6 @@ typedef enum {
     CLUSTERMSG_EXT_TYPE_HUMAN_NODENAME,
     CLUSTERMSG_EXT_TYPE_FORGOTTEN_NODE,
     CLUSTERMSG_EXT_TYPE_SHARDID,
-    CLUSTERMSG_EXT_TYPE_INTERNAL_SECRET,
 } clusterMsgPingtypes;
 
 /* Helper function for making sure extensions are eight byte aligned. */
@@ -236,7 +234,6 @@ typedef struct {
     char sender[CLUSTER_NAMELEN]; /* Name of the sender node */
     unsigned char myslots[CLUSTER_SLOTS/8];
     char slaveof[CLUSTER_NAMELEN];
-    char internal_secret[CLUSTER_INTERNAL_SECRET];
     char myip[NET_IP_STR_LEN];    /* Sender IP, if not all zeroed. */
     uint16_t extensions; /* Number of extensions sent along with this packet. */
     char notused1[30];   /* 30 bytes reserved for future usage. */
@@ -270,16 +267,15 @@ static_assert(offsetof(clusterMsg, offset) == 32, "unexpected field offset");
 static_assert(offsetof(clusterMsg, sender) == 40, "unexpected field offset");
 static_assert(offsetof(clusterMsg, myslots) == 80, "unexpected field offset");
 static_assert(offsetof(clusterMsg, slaveof) == 2128, "unexpected field offset");
-static_assert(offsetof(clusterMsg, internal_secret) == 2168, "unexpected field offset");
-static_assert(offsetof(clusterMsg, myip) == 2208, "unexpected field offset");
-static_assert(offsetof(clusterMsg, extensions) == 2254, "unexpected field offset");
-static_assert(offsetof(clusterMsg, notused1) == 2256, "unexpected field offset");
-static_assert(offsetof(clusterMsg, pport) == 2286, "unexpected field offset");
-static_assert(offsetof(clusterMsg, cport) == 2288, "unexpected field offset");
-static_assert(offsetof(clusterMsg, flags) == 2290, "unexpected field offset");
-static_assert(offsetof(clusterMsg, state) == 2292, "unexpected field offset");
-static_assert(offsetof(clusterMsg, mflags) == 2293, "unexpected field offset");
-static_assert(offsetof(clusterMsg, data) == 2296, "unexpected field offset");
+static_assert(offsetof(clusterMsg, myip) == 2168, "unexpected field offset");
+static_assert(offsetof(clusterMsg, extensions) == 2214, "unexpected field offset");
+static_assert(offsetof(clusterMsg, notused1) == 2216, "unexpected field offset");
+static_assert(offsetof(clusterMsg, pport) == 2246, "unexpected field offset");
+static_assert(offsetof(clusterMsg, cport) == 2248, "unexpected field offset");
+static_assert(offsetof(clusterMsg, flags) == 2250, "unexpected field offset");
+static_assert(offsetof(clusterMsg, state) == 2252, "unexpected field offset");
+static_assert(offsetof(clusterMsg, mflags) == 2253, "unexpected field offset");
+static_assert(offsetof(clusterMsg, data) == 2256, "unexpected field offset");
 
 #define CLUSTERMSG_MIN_LEN (sizeof(clusterMsg)-sizeof(union clusterMsgData))
 
@@ -294,7 +290,6 @@ struct _clusterNode {
     mstime_t ctime; /* Node object creation time. */
     char name[CLUSTER_NAMELEN]; /* Node name, hex string, sha1-size */
     char shard_id[CLUSTER_NAMELEN]; /* shard id, hex string, sha1-size */
-    char *internal_secret; /* node internal secret */
     int flags;      /* CLUSTER_NODE_... */
     uint64_t configEpoch; /* Last configEpoch observed for this node */
     unsigned char slots[CLUSTER_SLOTS/8]; /* slots handled by this node */

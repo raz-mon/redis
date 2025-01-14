@@ -21,8 +21,9 @@ start_server {tags {"modules"}} {
         # Internal connections can bypass ACL permissions.
         # Internal connections can bypass ACL users (no authentication needed).
         # Internal connections can execute internal commands in lua scripts from internal connections.
-        # Internal commands are not showed in the SlowLog, Monitor, CommandStats, and latency report (anywhere else?).
-        # Slave executes internal commands from the master (arrive via the replication link).
+        # Internal commands are showed in the SlowLog, CommandStats, and latency report.
+        # Internal commands are not listed for `COMMAND *` commands.
+        # Slave executes internal commands from the master (arrive via the replication link) successfully always.
         # AOF can execute internal commands.
         # RM_Call needs handling as well (?).
 

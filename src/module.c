@@ -12407,6 +12407,9 @@ int moduleLoad(const char *path, void **module_argv, int module_argc, int is_loa
     int (*onload)(void *, void **, int);
     void *handle;
 
+    printf("(Raz) test-print\n");
+    serverLog(LL_WARNING, "(Raz) test-log");
+
     struct stat st;
     if (stat(path, &st) == 0) {
         /* This check is best effort */
@@ -13382,7 +13385,7 @@ int RM_RdbSave(RedisModuleCtx *ctx, RedisModuleRdbStream *stream, int flags) {
 const char* RM_GetInternalSecret(RedisModuleCtx *ctx, size_t *len) {
     UNUSED(ctx);
     if (len) *len = INTERNAL_SECRET_LEN;
-    return getInternalSecret();
+    return clusterGetInternalSecret();
 }
 
 /* Redis MODULE command.

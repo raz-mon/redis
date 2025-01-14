@@ -7,6 +7,7 @@
  */
 
 #include "server.h"
+#include "cluster.h"
 #include "sha256.h"
 #include <fcntl.h>
 #include <ctype.h>
@@ -3259,7 +3260,7 @@ void internalAuthCommand(client *c) {
     robj *password = c->argv[1];
 
     // Get internal secret
-    char *internal_secret = getInternalSecret();
+    const char *internal_secret = clusterGetInternalSecret();
     if (sdslen(password->ptr) != INTERNAL_SECRET_LEN) {
         addReplyError(c, "-WRONGPASS invalid internal password");
         return;

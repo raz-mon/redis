@@ -2227,14 +2227,6 @@ void initServerConfig(void) {
 
     /* Debugging */
     server.watchdog_period = 0;
-
-    /* Initialize internal secret */
-    getRandomHexChars(server.internal_secret,INTERNAL_SECRET_LEN);
-}
-
-char* getInternalSecret(void) {
-    // TODO: Change to be the elected password.
-    return server.internal_secret;
 }
 
 extern char **environ;
@@ -3446,7 +3438,7 @@ void preventCommandReplication(client *c) {
 /* Log the last command a client executed into the slowlog. */
 void slowlogPushCurrentCommand(client *c, struct redisCommand *cmd, ustime_t duration) {
     /* Some commands may contain sensitive data that should not be available in the slowlog. */
-    if (cmd->flags & (CMD_SKIP_SLOWLOG|CMD_INTERNAL))
+    if (cmd->flags & (CMD_SKIP_SLOWLOG))
         return;
 
     /* If command argument vector was rewritten, use the original
@@ -3721,7 +3713,7 @@ void call(client *c, int flags) {
      * Other exceptions is a client which is unblocked and retrying to process the command
      * or we are currently in the process of loading AOF. */
     if (update_command_stats && !reprocessing_command &&
-        !(c->cmd->flags & (CMD_SKIP_MONITOR|CMD_ADMIN|CMD_INTERNAL))) {
+        !(c->cmd->flags & (CMD_SKIP_MONITOR|CMD_ADMIN))) {
         robj **argv = c->original_argv ? c->original_argv : c->argv;
         int argc = c->original_argv ? c->original_argc : c->argc;
         replicationFeedMonitors(c,server.monitors,c->db->id,argv,argc);
@@ -4719,6 +4711,10 @@ void timeCommand(client *c) {
     addReplyBulkLongLong(c, server.ustime-((long long)server.unixtime)*1000000);
 }
 
+bool shouldReplyCommandInternal(client *c, struct redisCommand *cmd) {
+    return !(cmd->flags & CMD_INTERNAL) || (c->flags & CLIENT_INTERNAL);
+}
+
 typedef struct replyFlagNames {
     uint64_t flag;
     const char *name;
@@ -5274,7 +5270,7 @@ void commandListWithFilter(client *c, dict *commands, commandListFilter filter, 
 
     while ((de = dictNext(di)) != NULL) {
         struct redisCommand *cmd = dictGetVal(de);
-        if (!shouldFilterFromCommandList(cmd,&filter)) {
+        if (shouldReplyCommandInternal(c, cmd) && !shouldFilterFromCommandList(cmd,&filter)) {
             addReplyBulkCBuffer(c, cmd->fullname, sdslen(cmd->fullname));
             (*numcmds)++;
         }
@@ -5293,8 +5289,10 @@ void commandListWithoutFilter(client *c, dict *commands, int *numcmds) {
 
     while ((de = dictNext(di)) != NULL) {
         struct redisCommand *cmd = dictGetVal(de);
-        addReplyBulkCBuffer(c, cmd->fullname, sdslen(cmd->fullname));
-        (*numcmds)++;
+        if (shouldReplyCommandInternal(c, cmd)) {
+            addReplyBulkCBuffer(c, cmd->fullname, sdslen(cmd->fullname));
+            (*numcmds)++;
+        }
 
         if (cmd->subcommands_dict) {
             commandListWithoutFilter(c, cmd->subcommands_dict, numcmds);
