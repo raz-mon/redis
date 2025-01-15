@@ -6355,6 +6355,7 @@ fmterr:
  *      }
  *
  * This API is documented here: https://redis.io/docs/latest/develop/reference/modules/
+ * Note: Internal commands are accessible to the RM_Call() API.
  */
 RedisModuleCallReply *RM_Call(RedisModuleCtx *ctx, const char *cmdname, const char *fmt, ...) {
     client *c = NULL;
@@ -6545,10 +6546,26 @@ RedisModuleCallReply *RM_Call(RedisModuleCtx *ctx, const char *cmdname, const ch
      *
      * If RM_SetContextUser has set a user, that user is used, otherwise
      * use the attached client's user. If there is no attached client user and no manually
-     * set user, an error will be returned */
+     * set user, an error will be returned.
+     * An internal command should only succeed for an internal connection. */
     if (flags & REDISMODULE_ARGV_RUN_AS_USER) {
         int acl_errpos;
         int acl_retval;
+
+        // Internal commands succeed if their corresponding connection is internal as well.
+        if (c->cmd->flags & CMD_INTERNAL) {
+            if (ctx->client->flags & CLIENT_INTERNAL) {
+                // Internal connections can execute internal commands, without
+                // ACL checks.
+                goto acl_ok;
+            } else {
+                // Non-internal connections cannot execute internal commands.
+                sds msg = sdscatfmt(sdsempty(), "unknown command '%.128s'", c->cmd);
+                reply = callReplyCreateError(msg, ctx);
+                errno = ENOENT;
+                goto cleanup;
+            }
+        }
 
         acl_retval = ACLCheckAllUserCommandPerm(user,c->cmd,c->argv,c->argc,&acl_errpos);
         if (acl_retval != ACL_OK) {
@@ -6565,6 +6582,7 @@ RedisModuleCallReply *RM_Call(RedisModuleCtx *ctx, const char *cmdname, const ch
             goto cleanup;
         }
     }
+acl_ok:
 
     /* If this is a Redis Cluster node, we need to make sure the module is not
      * trying to access non-local keys, with the exception of commands

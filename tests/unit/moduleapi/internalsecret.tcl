@@ -3,15 +3,15 @@ set testmodule [file normalize tests/modules/internalsecret.so]
 start_server {tags {"modules"}} {
     r module load $testmodule
 
-    test {Test internal command without internal connection} {
+    test {Internal command without internal connection fails} {
         assert_error {*unknown command*} {r internalauth.internalcommand}
     }
 
-    test {Test wrong internalsecret} {
+    test {Wrong internalsecret fails authentication} {
         assert_error {*WRONGPASS invalid internal password*} {r internalauth 123}
     }
 
-    test {Test internal connection flow basic} {
+    test {Internal connection basic flow} {
         set reply [r internalauth.getinternalsecret]
         assert_equal {OK} [r internalauth $reply]
         assert_equal {OK} [r internalauth.internalcommand]
@@ -50,12 +50,67 @@ start_server {tags {"modules"}} {
     }
 }
 
-    # Additional tests to add:
-        # Internal connections can bypass ACL permissions.
-        # Internal connections can bypass ACL users (no authentication needed).
-        # Internal connections can execute internal commands in lua scripts from internal connections.
-        # Internal commands are showed in the SlowLog, CommandStats, and latency report.
-        # Slave executes internal commands from the master (arrive via the replication link) successfully always.
-        # AOF can execute internal commands.
-        # RM_Call needs handling as well (probably). We WANT to allow modules to call internal commands.
-        # redis-cli does not show `INTERNALAUTH` in history.
+start_server {tags {"modules"}} {
+    r module load $testmodule
+
+    test {No authentication needed for internal connections} {
+        # Authenticate with a user that does not have permissions to any command
+        r acl setuser David on >123 &* ~* -@all +internalauth +internalauth.getinternalsecret
+        assert_equal {OK} [r auth David 123]
+
+        set reply [r internalauth.getinternalsecret]
+        assert_equal {OK} [r internalauth $reply]
+        assert_equal {OK} [r internalauth.internalcommand]
+    }
+}
+
+start_server {tags {"modules"}} {
+    r module load $testmodule
+
+    test {RM_Call of internal commands succeeds only for internal connections} {
+        # Fail before authenticating as an internal connection.
+        assert_error {*unknown command*} {r internalauth.rm_call_withclient internalauth.internalcommand}
+
+        # Authenticate as an internal connection.
+        set reply [r internalauth.getinternalsecret]
+        assert_equal {OK} [r internalauth $reply]
+
+        # Succeed
+        assert_equal {OK} [r internalauth.rm_call_withclient internalauth.internalcommand]
+    }
+}
+
+start_server {tags {"modules"}} {
+    r module load $testmodule
+
+    test {RM_Call with the `C` flag after setting thread-safe-context should fail} {
+        # New threadSafeContexts do not inherit the internal flag.
+        assert_error {*unknown command*} {r internalauth.rm_call_withclient_detached_context internalauth.internalcommand}
+    }
+}
+
+start_server {tags {"modules"} overrides {save {}}} {
+    r module load $testmodule
+
+    r config set appendonly yes
+    r config set auto-aof-rewrite-percentage 0 ; # Disable auto-rewrite.
+    waitForBgrewriteaof r
+
+    test {AOF executes internal commands successfully} {
+        # Authenticate as an internal connection
+        set reply [r internalauth.getinternalsecret]
+        assert_equal {OK} [r internalauth $reply]
+
+        # Call an internal writing command
+        assert_equal {OK} [r internalauth.internall_rm_call set x 5]
+
+        r bgrewriteaof
+        waitForBgrewriteaof r
+
+        # Reload the server from the AOF
+        r debug loadaof
+
+        # Check if the internal command was executed successfully
+        assert_equal {5} [r get x]
+    }
+}
