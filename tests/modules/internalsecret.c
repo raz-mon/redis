@@ -93,7 +93,8 @@ int internall_rm_call(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
 
     const char* cmd = RedisModule_StringPtrLen(argv[1], NULL);
 
-    RedisModuleCallReply* rep = RedisModule_Call(ctx, cmd, "vC", argv + 2, argc - 2);
+    RedisModuleCallReply* rep = RedisModule_Call(ctx, cmd, "vE", argv + 2, argc - 2);
+    // RedisModuleCallReply* rep = RedisModule_Call(ctx, cmd, "vCE", argv + 2, argc - 2);   // Why is this failing (no user found)?
     if(!rep) {
         char err[100];
         switch (errno) {
@@ -110,6 +111,7 @@ int internall_rm_call(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     } else {
         RedisModule_ReplyWithCallReply(ctx, rep);
         RedisModule_FreeCallReply(rep);
+        RedisModule_ReplicateVerbatim(ctx);
     }
 
     return REDISMODULE_OK;

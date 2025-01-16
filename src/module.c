@@ -6554,7 +6554,7 @@ RedisModuleCallReply *RM_Call(RedisModuleCtx *ctx, const char *cmdname, const ch
 
         // Internal commands succeed if their corresponding connection is internal as well.
         if (c->cmd->flags & CMD_INTERNAL) {
-            if (ctx->client->flags & CLIENT_INTERNAL) {
+            if ((ctx->client->flags & CLIENT_INTERNAL) || mustObeyClient(ctx->client)) {
                 // Internal connections can execute internal commands, without
                 // ACL checks.
                 goto acl_ok;

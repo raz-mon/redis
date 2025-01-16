@@ -93,7 +93,7 @@ start_server {tags {"modules"} overrides {save {}}} {
     r module load $testmodule
 
     r config set appendonly yes
-    r config set auto-aof-rewrite-percentage 0 ; # Disable auto-rewrite.
+    r config set appendfsync always
     waitForBgrewriteaof r
 
     test {AOF executes internal commands successfully} {
@@ -103,9 +103,6 @@ start_server {tags {"modules"} overrides {save {}}} {
 
         # Call an internal writing command
         assert_equal {OK} [r internalauth.internall_rm_call set x 5]
-
-        r bgrewriteaof
-        waitForBgrewriteaof r
 
         # Reload the server from the AOF
         r debug loadaof
@@ -136,5 +133,39 @@ start_server {tags {"modules"}} {
         assert_match {*eval*internalauth.internalcommand*} [$rd read]
         # No following log, since the command failed.
         $rd close
+    }
+}
+
+start_server {tags {"modules"}} {
+    r module load $testmodule
+
+    test {Setup master} {
+        # Authenticate as an internal connection
+        set reply [r internalauth.getinternalsecret]
+        assert_equal {OK} [r internalauth $reply]
+    }
+
+    start_server {tags {"modules"}} {
+        set master [srv -1 client]
+        set master_host [srv -1 host]
+        set master_port [srv -1 port]
+        set slave [srv 0 client]
+        $slave module load $testmodule
+
+        test {Slaves successfully execute internal commands} {
+            $slave slaveof $master_host $master_port
+            wait_for_condition 50 100 {
+                [s 0 master_link_status] eq {up}
+            } else {
+                fail "Replication not started."
+            }
+
+            # Execute internal command in master, that will set `x` to `5`.
+            assert_equal {OK} [$master internalauth.internall_rm_call set x 5]
+            wait_for_ofs_sync $master $slave
+
+            # See that the slave has the same value for `x`.
+            assert_equal {5} [$slave get x]
+        }
     }
 }
