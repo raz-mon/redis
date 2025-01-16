@@ -1151,7 +1151,7 @@ int64_t commandFlagsFromString(char *s) {
         else if (!strcasecmp(t,"no-cluster")) flags |= CMD_MODULE_NO_CLUSTER;
         else if (!strcasecmp(t,"no-mandatory-keys")) flags |= CMD_NO_MANDATORY_KEYS;
         else if (!strcasecmp(t,"allow-busy")) flags |= CMD_ALLOW_BUSY;
-        else if (!strcasecmp(t, "internal")) flags |= CMD_INTERNAL;
+        else if (!strcasecmp(t, "internal")) flags |= (CMD_INTERNAL|CMD_NOSCRIPT); // We disallow internal commands in scripts.
         else break;
     }
     sdsfreesplitres(tokens,count);

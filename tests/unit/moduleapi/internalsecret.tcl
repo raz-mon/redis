@@ -114,3 +114,27 @@ start_server {tags {"modules"} overrides {save {}}} {
         assert_equal {5} [r get x]
     }
 }
+
+start_server {tags {"modules"}} {
+    r module load $testmodule
+
+    test {Internal commands are not allowed from scripts} {
+        # Internal commands are not allowed from scripts
+        assert_error {*not allowed from script*} {r eval {redis.call('internalauth.internalcommand')} 0}
+
+        # Even after authenticating as an internal connection
+        set reply [r internalauth.getinternalsecret]
+        assert_equal {OK} [r internalauth $reply]
+        assert_error {*not allowed from script*} {r eval {redis.call('internalauth.internalcommand')} 0}
+
+        # Internal commands ARE shown in monitor output
+        set rd [redis_deferring_client]
+        $rd monitor
+        $rd read ; # Discard the OK
+        catch {r eval {redis.call('internalauth.internalcommand')} 0} err
+        assert_match "*not allowed from script*" $err
+        assert_match {*eval*internalauth.internalcommand*} [$rd read]
+        # No following log, since the command failed.
+        $rd close
+    }
+}
