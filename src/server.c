@@ -3438,7 +3438,7 @@ void preventCommandReplication(client *c) {
 /* Log the last command a client executed into the slowlog. */
 void slowlogPushCurrentCommand(client *c, struct redisCommand *cmd, ustime_t duration) {
     /* Some commands may contain sensitive data that should not be available in the slowlog. */
-    if (cmd->flags & (CMD_SKIP_SLOWLOG))
+    if (cmd->flags & CMD_SKIP_SLOWLOG)
         return;
 
     /* If command argument vector was rewritten, use the original
@@ -5385,7 +5385,6 @@ void commandDocsCommand(client *c) {
         /* Reply with an array of all commands */
         dictIterator *di;
         dictEntry *de;
-        // addReplyMapLen(c, dictSize(server.commands));
         void *replylen = addReplyDeferredLen(c);
         di = dictGetIterator(server.commands);
         while ((de = dictNext(di)) != NULL) {

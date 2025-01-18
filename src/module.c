@@ -6355,7 +6355,8 @@ fmterr:
  *      }
  *
  * This API is documented here: https://redis.io/docs/latest/develop/reference/modules/
- * Note: Internal commands are accessible to the RM_Call() API.
+ * Note: Internal commands are accessible to the RM_Call() API, unless sent from
+ * a non-internal connection with the `C` flag.
  */
 RedisModuleCallReply *RM_Call(RedisModuleCtx *ctx, const char *cmdname, const char *fmt, ...) {
     client *c = NULL;

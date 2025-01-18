@@ -1580,7 +1580,7 @@ clusterNode *clusterLookupNode(const char *name, int length) {
 }
 
 const char* clusterGetInternalSecret(size_t *len) {
-    // TODO: Change to be the elected password.
+    // TODO: Change to the elected password.
     *len = sizeof("bananalot") - 1;
     return "bananalot";
 }
