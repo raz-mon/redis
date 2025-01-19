@@ -169,3 +169,52 @@ start_server {tags {"modules"}} {
         }
     }
 }
+
+start_server {tags {"modules"}} {
+    r module load $testmodule
+
+    test {Internal commands are reported in the slowlog} {
+        # Authenticate as an internal connection
+        set reply [r internalauth.getinternalsecret]
+        assert_equal {OK} [r internalauth $reply]
+
+        # Set up slowlog to log all commands
+        r config set slowlog-log-slower-than 0
+
+        # Execute an internal command
+        r slowlog reset
+        r internalauth.internalcommand
+
+        # The slow-log should contain the internal command
+        set log [r slowlog get 1]
+        assert_match {*internalauth.internalcommand*} $log
+    }
+
+    test {Internal commands are reported in the monitor output} {
+        # Execute an internal command
+        set rd [redis_deferring_client]
+        $rd monitor
+        $rd read ; # Discard the OK
+        r internalauth.internalcommand
+        assert_match {*internalauth.internalcommand*} [$rd read]
+        $rd close
+    }
+
+    test {Internal commands are reported in the latency report} {
+        # The latency report should contain the internal command
+        set report [r latency histogram internalauth.internalcommand]
+        assert_match {*internalauth.internalcommand*} $report
+    }
+
+    test {Internal commands are reported in the command stats report} {
+        # Execute an internal command
+        r internalauth.internalcommand
+
+        # The INFO report should contain the internal command
+        set report [r info commandstats]
+        assert_match {*internalauth.internalcommand*} $report
+
+        set report [r info latencystats]
+        assert_match {*internalauth.internalcommand*} $report
+    }
+}
