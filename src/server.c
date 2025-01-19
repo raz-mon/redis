@@ -5218,7 +5218,7 @@ void commandCommand(client *c) {
         }
     }
     dictReleaseIterator(di);
-    setDeferredMapLen(c,replylen,numcmds);
+    setDeferredArrayLen(c,replylen,numcmds);
 }
 
 /* COMMAND COUNT */
@@ -5368,7 +5368,7 @@ void commandInfoCommand(client *c) {
             }
         }
         dictReleaseIterator(di);
-        setDeferredMapLen(c,replylen,numcmds);
+        setDeferredArrayLen(c,replylen,numcmds);
     } else {
         addReplyArrayLen(c, c->argc-2);
         for (i = 2; i < c->argc; i++) {
