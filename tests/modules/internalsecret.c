@@ -27,34 +27,32 @@ typedef enum {
     RM_CALL_REPLICATED = 2
 } RMCallMode;
 
-int internall_rm_call(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+int internall_rm_call(RedisModuleCtx *ctx, RedisModuleString **argv, int argc, RMCallMode mode) {
     if(argc < 2){
         return RedisModule_WrongArity(ctx);
     }
     RedisModuleCallReply *rep = NULL;
     RedisModuleCtx *detached_ctx = NULL;
-    const char* cmd = RedisModule_StringPtrLen(argv[2], NULL);
-    // Get the mode from the user
-    RMCallMode mode = atoi(RedisModule_StringPtrLen(argv[1], NULL));
+    const char* cmd = RedisModule_StringPtrLen(argv[1], NULL);
 
     switch (mode) {
         case RM_CALL_WITHCLIENT:
             // Simply call the command with the current client.
-            rep = RedisModule_Call(ctx, cmd, "vCE", argv + 3, argc - 3);
+            rep = RedisModule_Call(ctx, cmd, "vCE", argv + 2, argc - 2);
             break;
         case RM_CALL_WITHDETACHEDCLIENT:
             // Use a context created with the thread-safe-context API
-            detached_ctx = RedisModule_GetDetachedThreadSafeContext(ctx);
+            detached_ctx = RedisModule_GetThreadSafeContext(NULL);
             if(!detached_ctx){
                 RedisModule_ReplyWithError(ctx, "ERR failed to create detached context");
                 return REDISMODULE_ERR;
             }
             // Dispatch the command with the detached context
-            rep = RedisModule_Call(detached_ctx, cmd, "vCE", argv + 3, argc - 3);
+            rep = RedisModule_Call(detached_ctx, cmd, "vCE", argv + 2, argc - 2);
             break;
         case RM_CALL_REPLICATED:
             // Replicated call (verbatim), do not use the current client
-            rep = RedisModule_Call(ctx, cmd, "vE", argv + 3, argc - 3);
+            rep = RedisModule_Call(ctx, cmd, "vE", argv + 2, argc - 2);
     }
 
     if(!rep) {
@@ -85,6 +83,18 @@ int internall_rm_call(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
     return REDISMODULE_OK;
 }
 
+int internal_rmcall_withclient(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+    return internall_rm_call(ctx, argv, argc, RM_CALL_WITHCLIENT);
+}
+
+int internal_rmcall_detachedcontext(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+    return internall_rm_call(ctx, argv, argc, RM_CALL_WITHDETACHEDCLIENT);
+}
+
+int internal_rmcall_replicated(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+    return internall_rm_call(ctx, argv, argc, RM_CALL_REPLICATED);
+}
+
 /* This function must be present on each Redis module. It is used in order to
  * register the commands into the Redis server. */
 int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
@@ -104,8 +114,16 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) 
         InternalAuth_InternalCommand,"internal",0,0,0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
-    if (RedisModule_CreateCommand(ctx,"internalauth.internall_rm_call",
-        internall_rm_call,"write internal",0,0,0) == REDISMODULE_ERR)
+    if (RedisModule_CreateCommand(ctx,"internalauth.internal_rmcall_withclient",
+        internal_rmcall_withclient,"write internal",0,0,0) == REDISMODULE_ERR)
+        return REDISMODULE_ERR;
+
+    if (RedisModule_CreateCommand(ctx,"internalauth.internal_rmcall_detachedcontext",
+        internal_rmcall_detachedcontext,"write internal",0,0,0) == REDISMODULE_ERR)
+        return REDISMODULE_ERR;
+
+    if (RedisModule_CreateCommand(ctx,"internalauth.internal_rmcall_replicated",
+        internal_rmcall_replicated,"write internal",0,0,0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     return REDISMODULE_OK;

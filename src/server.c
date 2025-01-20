@@ -4072,10 +4072,15 @@ int processCommand(client *c) {
     }
 
     if ((c->cmd->flags & CMD_INTERNAL) && !((c->flags & CLIENT_INTERNAL) || mustObeyClient(c))) {
+        sds args = sdsempty();
+        int i;
+        for (i=1; i < c->argc && sdslen(args) < 128; i++)
+            args = sdscatprintf(args, "'%.*s' ", 128-(int)sdslen(args), (char*)c->argv[i]->ptr);
         sds err = sdsnew(NULL);
-        err = sdscatprintf(err, "unknown command '%.128s'", (char*)c->argv[0]->ptr);
-        rejectCommandFormat(c, "-ERR %s", err);
-        sdsfree(err);
+        err = sdscatprintf(err, "unknown command '%.128s', with args beginning with: %s",
+                            (char*)c->argv[0]->ptr, args);
+        sdsfree(args);
+        rejectCommandSds(c, err);
         return C_OK;
     }
 

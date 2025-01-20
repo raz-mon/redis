@@ -3,8 +3,8 @@ set testmodule [file normalize tests/modules/internalsecret.so]
 start_server {tags {"modules"}} {
     r module load $testmodule
 
-    test {Internal command without internal connection fails} {
-        assert_error {*unknown command*} {r internalauth.internalcommand}
+    test {Internal command without internal connection fails as an unknown command} {
+        assert_error {*unknown command*with args beginning with:*} {r internalauth.internalcommand}
     }
 
     test {Wrong internalsecret fails authentication} {
@@ -69,14 +69,14 @@ start_server {tags {"modules"}} {
 
     test {RM_Call of internal commands succeeds only for internal connections} {
         # Fail before authenticating as an internal connection.
-        assert_error {*unknown command*} {r internalauth.internall_rm_call 0 internalauth.internalcommand}
+        assert_error {*unknown command*} {r internalauth.internal_rmcall_withclient internalauth.internalcommand}
 
         # Authenticate as an internal connection.
         set reply [r internalauth.getinternalsecret]
         assert_equal {OK} [r internalauth $reply]
 
         # Succeed
-        assert_equal {OK} [r internalauth.internall_rm_call 0 internalauth.internalcommand]
+        assert_equal {OK} [r internalauth.internal_rmcall_withclient internalauth.internalcommand]
     }
 }
 
@@ -85,7 +85,7 @@ start_server {tags {"modules"}} {
 
     test {RM_Call with the `C` flag after setting thread-safe-context should fail} {
         # New threadSafeContexts do not inherit the internal flag.
-        assert_error {*unknown command*} {r internalauth.internall_rm_call 1 internalauth.internalcommand}
+        assert_error {*unknown command*} {r internalauth.internal_rmcall_detachedcontext internalauth.internalcommand}
     }
 }
 
@@ -102,7 +102,7 @@ start_server {tags {"modules"} overrides {save {}}} {
         assert_equal {OK} [r internalauth $reply]
 
         # Call an internal writing command
-        assert_equal {OK} [r internalauth.internall_rm_call 2 set x 5]
+        assert_equal {OK} [r internalauth.internal_rmcall_replicated set x 5]
 
         # Reload the server from the AOF
         r debug loadaof
@@ -161,7 +161,7 @@ start_server {tags {"modules"}} {
             }
 
             # Execute internal command in master, that will set `x` to `5`.
-            assert_equal {OK} [$master internalauth.internall_rm_call 2 set x 5]
+            assert_equal {OK} [$master internalauth.internal_rmcall_replicated set x 5]
             wait_for_ofs_sync $master $slave
 
             # See that the slave has the same value for `x`.
