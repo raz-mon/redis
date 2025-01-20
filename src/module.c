@@ -6285,6 +6285,8 @@ fmterr:
  *              dependent activity, such as ACL checks within scripts will proceed as
  *              expected.
  *              Otherwise, the command will run as the Redis unrestricted user.
+ *              Upon sending an internal command from an internal connection, this
+ *              flag is ignored and the command will run as the Redis unrestricted user.
  *     * `S` -- Run the command in a script mode, this means that it will raise
  *              an error if a command which are not allowed inside a script
  *              (flagged with the `deny-script` flag) is invoked (like SHUTDOWN).
@@ -6355,8 +6357,6 @@ fmterr:
  *      }
  *
  * This API is documented here: https://redis.io/docs/latest/develop/reference/modules/
- * Note: Internal commands are accessible to the RM_Call() API, unless sent from
- * a non-internal connection with the `C` flag.
  */
 RedisModuleCallReply *RM_Call(RedisModuleCtx *ctx, const char *cmdname, const char *fmt, ...) {
     client *c = NULL;
@@ -6396,6 +6396,10 @@ RedisModuleCallReply *RM_Call(RedisModuleCtx *ctx, const char *cmdname, const ch
     if (ctx->module) ctx->module->in_call++;
 
     user *user = NULL;
+    // Internal connections should not be restricted by the user
+    if (ctx->client->flags & CLIENT_INTERNAL) {
+        flags &= ~REDISMODULE_ARGV_RUN_AS_USER;
+    }
     if (flags & REDISMODULE_ARGV_RUN_AS_USER) {
         user = ctx->user ? ctx->user->user : ctx->client->user;
         if (!user) {
@@ -6548,20 +6552,19 @@ RedisModuleCallReply *RM_Call(RedisModuleCtx *ctx, const char *cmdname, const ch
      * If RM_SetContextUser has set a user, that user is used, otherwise
      * use the attached client's user. If there is no attached client user and no manually
      * set user, an error will be returned.
-     * An internal command should only succeed for an internal connection. */
+     * An internal command should only succeed for an internal connection, AOF,
+     * and master commands. */
     if (flags & REDISMODULE_ARGV_RUN_AS_USER) {
         int acl_errpos;
         int acl_retval;
 
-        // Internal commands succeed if their corresponding connection is internal as well.
+        // At this point, we already know that the client is not internal.
         if (c->cmd->flags & CMD_INTERNAL) {
-            if ((ctx->client->flags & CLIENT_INTERNAL) || mustObeyClient(ctx->client)) {
-                // Internal connections can execute internal commands, without
-                // ACL checks.
+            if (mustObeyClient(ctx->client)) {
                 goto acl_ok;
             } else {
                 // Non-internal connections cannot execute internal commands.
-                sds msg = sdscatfmt(sdsempty(), "unknown command '%.128s'", c->cmd);
+                sds msg = sdscatprintf(sdsempty(), "unknown command '%.128s'", c->cmd->declared_name);
                 reply = callReplyCreateError(msg, ctx);
                 errno = ENOENT;
                 goto cleanup;
@@ -13400,9 +13403,8 @@ int RM_RdbSave(RedisModuleCtx *ctx, RedisModuleRdbStream *stream, int flags) {
 
 const char* RM_GetInternalSecret(RedisModuleCtx *ctx, size_t *len) {
     UNUSED(ctx);
-    size_t local_len;
-    const char *secret = clusterGetInternalSecret(&local_len);
-    if (len) *len = local_len;
+    serverAssert(len != NULL);
+    const char *secret = clusterGetInternalSecret(len);
     return secret;
 }
 

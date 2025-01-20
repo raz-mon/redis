@@ -69,14 +69,14 @@ start_server {tags {"modules"}} {
 
     test {RM_Call of internal commands succeeds only for internal connections} {
         # Fail before authenticating as an internal connection.
-        assert_error {*unknown command*} {r internalauth.rm_call_withclient internalauth.internalcommand}
+        assert_error {*unknown command*} {r internalauth.internall_rm_call 0 internalauth.internalcommand}
 
         # Authenticate as an internal connection.
         set reply [r internalauth.getinternalsecret]
         assert_equal {OK} [r internalauth $reply]
 
         # Succeed
-        assert_equal {OK} [r internalauth.rm_call_withclient internalauth.internalcommand]
+        assert_equal {OK} [r internalauth.internall_rm_call 0 internalauth.internalcommand]
     }
 }
 
@@ -85,7 +85,7 @@ start_server {tags {"modules"}} {
 
     test {RM_Call with the `C` flag after setting thread-safe-context should fail} {
         # New threadSafeContexts do not inherit the internal flag.
-        assert_error {*unknown command*} {r internalauth.rm_call_withclient_detached_context internalauth.internalcommand}
+        assert_error {*unknown command*} {r internalauth.internall_rm_call 1 internalauth.internalcommand}
     }
 }
 
@@ -102,7 +102,7 @@ start_server {tags {"modules"} overrides {save {}}} {
         assert_equal {OK} [r internalauth $reply]
 
         # Call an internal writing command
-        assert_equal {OK} [r internalauth.internall_rm_call set x 5]
+        assert_equal {OK} [r internalauth.internall_rm_call 2 set x 5]
 
         # Reload the server from the AOF
         r debug loadaof
@@ -161,7 +161,7 @@ start_server {tags {"modules"}} {
             }
 
             # Execute internal command in master, that will set `x` to `5`.
-            assert_equal {OK} [$master internalauth.internall_rm_call set x 5]
+            assert_equal {OK} [$master internalauth.internall_rm_call 2 set x 5]
             wait_for_ofs_sync $master $slave
 
             # See that the slave has the same value for `x`.
