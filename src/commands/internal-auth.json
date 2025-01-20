@@ -12,7 +12,6 @@
             "STALE",
             "FAST",
             "NO_AUTH",
-            "SENTINEL",
             "ALLOW_BUSY"
         ],
         "acl_categories": [
