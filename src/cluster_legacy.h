@@ -148,10 +148,13 @@ typedef enum {
     CLUSTERMSG_EXT_TYPE_HUMAN_NODENAME,
     CLUSTERMSG_EXT_TYPE_FORGOTTEN_NODE,
     CLUSTERMSG_EXT_TYPE_SHARDID,
+    CLUSTERMSG_EXT_TYPE_INTERNALSECRET,
+    CLUSTERMSG_EXT_TYPE_GOSSIPINTERNALSECRET,
 } clusterMsgPingtypes;
 
 /* Helper function for making sure extensions are eight byte aligned. */
 #define EIGHT_BYTE_ALIGN(size) ((((size) + 7) / 8) * 8)
+#define CLUSTER_INTERNALSECRETLEN 40      /* sha1 hex length */
 
 typedef struct {
     char hostname[1]; /* The announced hostname, ends with \0. */
@@ -173,6 +176,16 @@ typedef struct {
 } clusterMsgPingExtShardId;
 
 typedef struct {
+    char internal_secret[CLUSTER_INTERNALSECRETLEN]; /* Current shard internal secret */
+} clusterMsgPingExtInternalSecret;
+
+typedef struct {
+    char name[CLUSTER_NAMELEN];
+    char internal_secret[CLUSTER_INTERNALSECRETLEN]; /* Current shard internal secret */
+} clusterMsgPingExtGossipInternalSecret;
+
+
+typedef struct {
     uint32_t length; /* Total length of this extension message (including this header) */
     uint16_t type; /* Type of this extension message (see clusterMsgPingExtTypes) */
     uint16_t unused; /* 16 bits of padding to make this structure 8 byte aligned. */
@@ -181,6 +194,8 @@ typedef struct {
         clusterMsgPingExtHumanNodename human_nodename;
         clusterMsgPingExtForgottenNode forgotten_node;
         clusterMsgPingExtShardId shard_id;
+        clusterMsgPingExtInternalSecret internal_secret;
+        clusterMsgPingExtGossipInternalSecret gossip_internal_secret;
     } ext[]; /* Actual extension information, formatted so that the data is 8
               * byte aligned, regardless of its content. */
 } clusterMsgPingExt;
@@ -290,6 +305,7 @@ struct _clusterNode {
     mstime_t ctime; /* Node object creation time. */
     char name[CLUSTER_NAMELEN]; /* Node name, hex string, sha1-size */
     char shard_id[CLUSTER_NAMELEN]; /* shard id, hex string, sha1-size */
+    char internal_secret[CLUSTER_INTERNALSECRETLEN + 1]; /* Internal secret of the current node (+1 for the \0) */
     int flags;      /* CLUSTER_NODE_... */
     uint64_t configEpoch; /* Last configEpoch observed for this node */
     unsigned char slots[CLUSTER_SLOTS/8]; /* slots handled by this node */
