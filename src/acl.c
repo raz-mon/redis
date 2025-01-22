@@ -3261,7 +3261,7 @@ void internalAuthCommand(client *c) {
 
     // Get internal secret
     size_t len;
-    const char *internal_secret = clusterGetInternalSecret(&len);
+    const char *internal_secret = clusterGetSecret(&len);
     if (sdslen(password->ptr) != len) {
         addReplyError(c, "-WRONGPASS invalid internal password");
         return;

@@ -13404,7 +13404,7 @@ int RM_RdbSave(RedisModuleCtx *ctx, RedisModuleRdbStream *stream, int flags) {
 const char* RM_GetInternalSecret(RedisModuleCtx *ctx, size_t *len) {
     UNUSED(ctx);
     serverAssert(len != NULL);
-    const char *secret = clusterGetInternalSecret(len);
+    const char *secret = clusterGetSecret(len);
     return secret;
 }
 
