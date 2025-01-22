@@ -1622,6 +1622,9 @@ clusterNode *clusterLookupNode(const char *name, int length) {
 
 const char *clusterGetSecret(size_t *len) {
     const char *min_secret = NULL;
+    if (!server.cluster) {
+        return NULL;
+    }
     dictIterator *di = dictGetSafeIterator(server.cluster->nodes);
     dictEntry *de = NULL;
     while((de = dictNext(di)) != NULL) {
