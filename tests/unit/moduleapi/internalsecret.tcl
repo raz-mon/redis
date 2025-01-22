@@ -1,7 +1,9 @@
+tags {modules} {
 set testmodule [file normalize tests/modules/internalsecret.so]
 
-start_server {tags {"modules"}} {
-    r module load $testmodule
+set modules [list loadmodule $testmodule]
+start_cluster 1 0 [list config_lines $modules] {
+    set r [srv 0 client]
 
     test {Internal command without internal connection fails as an unknown command} {
         assert_error {*unknown command*with args beginning with:*} {r internalauth.internalcommand}
@@ -18,8 +20,23 @@ start_server {tags {"modules"}} {
     }
 }
 
-start_server {tags {"modules"}} {
+start_server {} {
     r module load $testmodule
+
+    # On non-cluster mode, the internal secret does not exist, nor is the
+    # internalauth command available
+    assert_error {*unknown command*} {r internalauth.internalcommand}
+    assert_error {*Command not available on non-cluster instances*} {r internalauth somepassword}
+    assert_error {*ERR no internal secret available*} {r internalauth.getinternalsecret}
+
+    # After promoting the connection to an internal one via a debug command,
+    # internal commands succeed.
+    r debug promote-conn
+    assert_equal {OK} [r internalauth.internalcommand]
+}
+
+start_cluster 1 0 [list config_lines $modules] {
+    set r [srv 0 client]
 
     test {Test `COMMAND *` commands with\without internal connections} {
         # ------------------ Non-internal connection ------------------
@@ -50,8 +67,8 @@ start_server {tags {"modules"}} {
     }
 }
 
-start_server {tags {"modules"}} {
-    r module load $testmodule
+start_cluster 1 0 [list config_lines $modules] {
+    set r [srv 0 client]
 
     test {No authentication needed for internal connections} {
         # Authenticate with a user that does not have permissions to any command
@@ -64,8 +81,8 @@ start_server {tags {"modules"}} {
     }
 }
 
-start_server {tags {"modules"}} {
-    r module load $testmodule
+start_cluster 1 0 [list config_lines $modules] {
+    set r [srv 0 client]
 
     test {RM_Call of internal commands succeeds only for internal connections} {
         # Fail before authenticating as an internal connection.
@@ -80,8 +97,8 @@ start_server {tags {"modules"}} {
     }
 }
 
-start_server {tags {"modules"}} {
-    r module load $testmodule
+start_cluster 1 0 [list config_lines $modules] {
+    set r [srv 0 client]
 
     test {RM_Call with the `C` flag after setting thread-safe-context should fail} {
         # New threadSafeContexts do not inherit the internal flag.
@@ -89,8 +106,8 @@ start_server {tags {"modules"}} {
     }
 }
 
-start_server {tags {"modules"} overrides {save {}}} {
-    r module load $testmodule
+start_cluster 1 0 [list config_lines $modules] {
+    set r [srv 0 client]
 
     r config set appendonly yes
     r config set appendfsync always
@@ -112,8 +129,8 @@ start_server {tags {"modules"} overrides {save {}}} {
     }
 }
 
-start_server {tags {"modules"}} {
-    r module load $testmodule
+start_cluster 1 0 [list config_lines $modules] {
+    set r [srv 0 client]
 
     test {Internal commands are not allowed from scripts} {
         # Internal commands are not allowed from scripts
@@ -136,42 +153,42 @@ start_server {tags {"modules"}} {
     }
 }
 
-start_server {tags {"modules"}} {
-    r module load $testmodule
+start_cluster 1 1 [list config_lines $modules] {
+    set master [srv 0 client]
+    set slave [srv -1 client]
 
     test {Setup master} {
         # Authenticate as an internal connection
-        set reply [r internalauth.getinternalsecret]
-        assert_equal {OK} [r internalauth $reply]
+        set reply [$master internalauth.getinternalsecret]
+        assert_equal {OK} [$master internalauth $reply]
     }
 
-    start_server {tags {"modules"}} {
-        set master [srv -1 client]
-        set master_host [srv -1 host]
-        set master_port [srv -1 port]
-        set slave [srv 0 client]
-        $slave module load $testmodule
-
-        test {Slaves successfully execute internal commands} {
-            $slave slaveof $master_host $master_port
-            wait_for_condition 50 100 {
-                [s 0 master_link_status] eq {up}
-            } else {
-                fail "Replication not started."
-            }
-
-            # Execute internal command in master, that will set `x` to `5`.
-            assert_equal {OK} [$master internalauth.internal_rmcall_replicated set x 5]
-            wait_for_ofs_sync $master $slave
-
-            # See that the slave has the same value for `x`.
-            assert_equal {5} [$slave get x]
+    test {Slaves successfully execute internal commands from replication link} {
+        assert {[s -1 role] eq {slave}}
+        wait_for_condition 1000 50 {
+            [s -1 master_link_status] eq {up}
+        } else {
+            fail "Master link status is not up"
         }
+
+        # Execute internal command in master, that will set `x` to `5`.
+        assert_equal {OK} [$master internalauth.internal_rmcall_replicated set x 5]
+
+        # Wait for replica to have the key
+        $slave readonly
+        wait_for_condition 1000 50 {
+            [$slave exists x] eq "1"
+        } else {
+            fail "Test key was not replicated"
+        }
+
+        # See that the slave has the same value for `x`.
+        assert_equal {5} [$slave get x]
     }
 }
 
-start_server {tags {"modules"}} {
-    r module load $testmodule
+start_cluster 1 0 [list config_lines $modules] {
+    set master [srv 0 client]
 
     test {Internal commands are reported in the slowlog} {
         # Authenticate as an internal connection
@@ -219,8 +236,8 @@ start_server {tags {"modules"}} {
     }
 }
 
-start_server {tags {"modules"}} {
-    r module load $testmodule
+start_cluster 1 0 [list config_lines $modules] {
+    set master [srv 0 client]
 
     test {Promote client connection via debug command} {
         # Fail executing an internal command before promoting the connection
@@ -232,4 +249,5 @@ start_server {tags {"modules"}} {
         # Succeed executing an internal command
         assert_equal {OK} [r internalauth.internalcommand]
     }
+}
 }

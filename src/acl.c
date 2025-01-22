@@ -3253,6 +3253,9 @@ void internalAuthCommand(client *c) {
     if (c->argc > 2) {
         addReplyErrorObject(c,shared.syntaxerr);
         return;
+    } else if (server.cluster == NULL) {
+        addReplyError(c, "Command not available on non-cluster instances");
+        return;
     }
     /* Always redact the second argument (password) */
     redactClientCommandArgument(c, 1);
@@ -3260,7 +3263,7 @@ void internalAuthCommand(client *c) {
     robj *password = c->argv[1];
 
     // Get internal secret
-    size_t len;
+    size_t len = -1;
     const char *internal_secret = clusterGetSecret(&len);
     if (sdslen(password->ptr) != len) {
         addReplyError(c, "-WRONGPASS invalid internal password");

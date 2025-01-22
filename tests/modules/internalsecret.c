@@ -9,7 +9,11 @@ int InternalAuth_GetInternalSecret(RedisModuleCtx *ctx, RedisModuleString **argv
     done for testing purposes only. */
     size_t len;
     const char *secret = RedisModule_GetInternalSecret(ctx, &len);
-    RedisModule_ReplyWithStringBuffer(ctx, secret, len);
+    if(secret) {
+        RedisModule_ReplyWithStringBuffer(ctx, secret, len);
+    } else {
+        RedisModule_ReplyWithError(ctx, "ERR no internal secret available");
+    }
     return REDISMODULE_OK;
 }
 
