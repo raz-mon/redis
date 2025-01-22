@@ -492,6 +492,8 @@ void debugCommand(client *c) {
 "    Enable or disable the main dict and expire dict resizing.",
 "SCRIPT <LIST|<sha>>",
 "    Output SHA and content of all scripts or of a specific script with its SHA.",
+"PROMOTE-CONN",
+"    Promote the current connection to an internal connection.",
 NULL
         };
         addExtendedReplyHelp(c, help, clusterDebugCommandExtendedHelp());
@@ -1063,6 +1065,9 @@ NULL
             return;
         }
         addReply(c,shared.ok);
+    } else if(!strcasecmp(c->argv[1]->ptr,"promote-conn") && c->argc == 2) {
+        c->flags |= CLIENT_INTERNAL;
+        addReply(c, shared.ok);
     } else if(!handleDebugClusterCommand(c)) {
         addReplySubcommandSyntaxError(c);
         return;

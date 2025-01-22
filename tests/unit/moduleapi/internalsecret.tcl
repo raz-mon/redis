@@ -218,3 +218,18 @@ start_server {tags {"modules"}} {
         assert_match {*internalauth.internalcommand*} $report
     }
 }
+
+start_server {tags {"modules"}} {
+    r module load $testmodule
+
+    test {Promote client connection via debug command} {
+        # Fail executing an internal command before promoting the connection
+        assert_error {*unknown command*} {r internalauth.internalcommand}
+
+        # Promote the connection to internal
+        r debug promote-conn
+
+        # Succeed executing an internal command
+        assert_equal {OK} [r internalauth.internalcommand]
+    }
+}
