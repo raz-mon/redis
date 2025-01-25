@@ -3260,16 +3260,16 @@ void internalAuthCommand(client *c) {
     /* Always redact the second argument (password) */
     redactClientCommandArgument(c, 1);
 
-    robj *password = c->argv[1];
+    robj *password = c->argv[1]->ptr;
 
     // Get internal secret
     size_t len = -1;
     const char *internal_secret = clusterGetSecret(&len);
-    if (sdslen(password->ptr) != len) {
+    if (sdslen(password) != len) {
         addReplyError(c, "-WRONGPASS invalid internal password");
         return;
     }
-    if (!memcmp(internal_secret, password->ptr, len)) {
+    if (!memcmp(internal_secret, password, len)) {
         c->flags |= CLIENT_INTERNAL;
         // No further authentication is needed.
         c->authenticated = 1;
