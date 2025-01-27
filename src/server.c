@@ -4073,8 +4073,7 @@ int processCommand(client *c) {
 
     if ((c->cmd->flags & CMD_INTERNAL) && !((c->flags & CLIENT_INTERNAL) || mustObeyClient(c))) {
         sds args = sdsempty();
-        int i;
-        for (i=1; i < c->argc && sdslen(args) < 128; i++)
+        for (int i = 1; i < c->argc && sdslen(args) < 128; i++)
             args = sdscatprintf(args, "'%.*s' ", 128-(int)sdslen(args), (char*)c->argv[i]->ptr);
         sds err = sdsnew(NULL);
         err = sdscatprintf(err, "unknown command '%.128s', with args beginning with: %s",
@@ -4716,11 +4715,6 @@ void timeCommand(client *c) {
     addReplyBulkLongLong(c, server.ustime-((long long)server.unixtime)*1000000);
 }
 
-/* Reply with an internal command only if the client is internal. */
-bool shouldReplyCommandInternal(client *c, struct redisCommand *cmd) {
-    return (!(cmd->flags & CMD_INTERNAL)) || (c->flags & CLIENT_INTERNAL);
-}
-
 typedef struct replyFlagNames {
     uint64_t flag;
     const char *name;
@@ -5055,6 +5049,11 @@ void addReplyCommandSubCommands(client *c, struct redisCommand *cmd, void (*repl
         reply_function(c, sub);
     }
     dictReleaseIterator(di);
+}
+
+/* Returns true if the command is not internal, or the connection is internal. */
+static bool shouldReplyCommandInternal(client *c, struct redisCommand *cmd) {
+    return (!(cmd->flags & CMD_INTERNAL)) || (c->flags & CLIENT_INTERNAL);
 }
 
 /* Output the representation of a Redis command. Used by the COMMAND command and COMMAND INFO. */

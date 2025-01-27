@@ -31,7 +31,7 @@ start_server {} {
 
     # After promoting the connection to an internal one via a debug command,
     # internal commands succeed.
-    r debug promote-conn
+    r debug promote-conn-internal
     assert_equal {OK} [r internalauth.internalcommand]
 }
 
@@ -244,7 +244,7 @@ start_cluster 1 0 [list config_lines $modules] {
         assert_error {*unknown command*} {r internalauth.internalcommand}
 
         # Promote the connection to internal
-        r debug promote-conn
+        r debug promote-conn-internal
 
         # Succeed executing an internal command
         assert_equal {OK} [r internalauth.internalcommand]

@@ -3247,22 +3247,18 @@ void authCommand(client *c) {
 /* INTERNALAUTH <password>
  *
  * Initiates an internal connection, that is able to execute internal flagged
- * commands */
+ * commands. */
 void internalAuthCommand(client *c) {
-    /* Only two or three argument forms are allowed. */
-    if (c->argc > 2) {
-        addReplyErrorObject(c,shared.syntaxerr);
-        return;
-    } else if (server.cluster == NULL) {
+    if (server.cluster == NULL) {
         addReplyError(c, "Command not available on non-cluster instances");
         return;
     }
-    /* Always redact the second argument (password) */
+    /* Always redact the second argument (password). */
     redactClientCommandArgument(c, 1);
 
-    robj *password = c->argv[1]->ptr;
+    sds password = c->argv[1]->ptr;
 
-    // Get internal secret
+    /* Get internal secret. */
     size_t len = -1;
     const char *internal_secret = clusterGetSecret(&len);
     if (sdslen(password) != len) {
@@ -3271,7 +3267,7 @@ void internalAuthCommand(client *c) {
     }
     if (!memcmp(internal_secret, password, len)) {
         c->flags |= CLIENT_INTERNAL;
-        // No further authentication is needed.
+        /* No further authentication is needed. */
         c->authenticated = 1;
         addReply(c, shared.ok);
     } else {
