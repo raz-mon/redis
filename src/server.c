@@ -3717,7 +3717,6 @@ void call(client *c, int flags) {
      * since some administrative commands are considered too dangerous to be shown.
      * Other exceptions is a client which is unblocked and retrying to process the command
      * or we are currently in the process of loading AOF. */
-    serverLog(LL_WARNING, "(Raz) (cmd->flags & CMD_INTERNAL): %llu, (c->flags & CLIENT_INTERNAL): %llu.", c->cmd->flags & CMD_INTERNAL, c->flags & CLIENT_INTERNAL);
     if (update_command_stats && !reprocessing_command   &&
         !(c->cmd->flags & (CMD_SKIP_MONITOR|CMD_ADMIN)) &&
         commandAccessibleForClient(c, real_cmd)) {
