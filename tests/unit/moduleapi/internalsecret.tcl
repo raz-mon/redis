@@ -190,6 +190,18 @@ start_cluster 1 1 [list config_lines $modules] {
 start_cluster 1 0 [list config_lines $modules] {
     set master [srv 0 client]
 
+    test {Internal commands are not reported in the monitor output for non-internal connections} {
+        # Execute an internal command
+        set rd [redis_deferring_client]
+        $rd monitor
+        $rd read ; # Discard the OK
+        assert_error {*unknown command*} {r internalauth.internalcommand}
+        # Assert that the monitor output does not contain the internal command
+        r ping
+        assert_match {*ping*} [$rd read]
+        $rd close
+    }
+
     test {Internal commands are reported in the slowlog} {
         # Authenticate as an internal connection
         set reply [r internalauth.getinternalsecret]
@@ -207,7 +219,7 @@ start_cluster 1 0 [list config_lines $modules] {
         assert_match {*internalauth.internalcommand*} $log
     }
 
-    test {Internal commands are reported in the monitor output} {
+    test {Internal commands are reported in the monitor output for internal connections} {
         # Execute an internal command
         set rd [redis_deferring_client]
         $rd monitor
