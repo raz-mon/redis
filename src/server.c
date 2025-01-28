@@ -5037,7 +5037,7 @@ void addReplyCommandKeySpecs(client *c, struct redisCommand *cmd) {
 
 /* Reply with an array of sub-command using the provided reply callback. */
 void addReplyCommandSubCommands(client *c, struct redisCommand *cmd, void (*reply_function)(client*, struct redisCommand*), int use_map) {
-    if (!cmd->subcommands_dict) {
+    if (!cmd->subcommands_dict || !commandAccessibleForClient(c, cmd)) {
         addReplySetLen(c, 0);
         return;
     }
