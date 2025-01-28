@@ -795,7 +795,9 @@ int TestAssertIntegerReply(RedisModuleCtx *ctx, RedisModuleCallReply *reply, lon
 }
 
 /* Replies "yes", "no" otherwise if the context may execute debug commands */
-int TestCanDebug(RedisModuleCtx *ctx) {
+int TestCanDebug(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+    REDISMODULE_NOT_USED(argv);
+    REDISMODULE_NOT_USED(argc);
     int flags = RedisModule_GetContextFlags(ctx);
     int allFlags = RedisModule_GetContextFlagsAll();
     if ((allFlags & REDISMODULE_CTX_FLAGS_DEBUG_ENABLED) &&
