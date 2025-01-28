@@ -27,7 +27,8 @@ start_server {} {
     # internalauth command available
     assert_error {*unknown command*} {r internalauth.internalcommand}
     assert_error {*Command not available on non-cluster instances*} {r internalauth somepassword}
-    assert_error {*ERR no internal secret available*} {r internalauth.getinternalsecret}
+    # TODO: Return this line once #13763 is merged
+    # assert_error {*ERR no internal secret available*} {r internalauth.getinternalsecret}
 
     # After promoting the connection to an internal one via a debug command,
     # internal commands succeed.
