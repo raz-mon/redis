@@ -3901,6 +3901,9 @@ int RM_GetSelectedDb(RedisModuleCtx *ctx) {
  *                                 context is using RESP3.
  *
  *  * REDISMODULE_CTX_FLAGS_SERVER_STARTUP: The Redis instance is starting
+ *
+ *  * REDISMODULE_CTX_FLAGS_DEBUG_ENABLED: Debug commands are enabled for this
+ *                                         context.
  */
 int RM_GetContextFlags(RedisModuleCtx *ctx) {
     int flags = 0;
