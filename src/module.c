@@ -3923,6 +3923,9 @@ int RM_GetContextFlags(RedisModuleCtx *ctx) {
         if (c && (c->flags & (CLIENT_DIRTY_CAS|CLIENT_DIRTY_EXEC))) {
             flags |= REDISMODULE_CTX_FLAGS_MULTI_DIRTY;
         }
+        if (c && allowProtectedAction(server.enable_debug_cmd, c)) {
+            flags |= REDISMODULE_CTX_FLAGS_DEBUG_ENABLED;
+        }
     }
 
     if (scriptIsRunning())
@@ -3989,6 +3992,10 @@ int RM_GetContextFlags(RedisModuleCtx *ctx) {
     /* Non-empty server.loadmodule_queue means that Redis is starting. */
     if (listLength(server.loadmodule_queue) > 0)
         flags |= REDISMODULE_CTX_FLAGS_SERVER_STARTUP;
+
+    if (server.enable_debug_cmd) {
+        flags |= REDISMODULE_CTX_FLAGS_DEBUG_ENABLED;
+    }
 
     return flags;
 }
