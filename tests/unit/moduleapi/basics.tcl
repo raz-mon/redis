@@ -67,6 +67,4 @@ start_server {tags {"modules external:skip"} overrides {enable-debug-command loc
     test {debug commands are enabled for local connection} {
         assert_equal {yes} [r test.candebug]
     }
-
-    # TODO: Non-local case - can we test here?
 }
