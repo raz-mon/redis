@@ -3993,7 +3993,8 @@ int RM_GetContextFlags(RedisModuleCtx *ctx) {
     if (listLength(server.loadmodule_queue) > 0)
         flags |= REDISMODULE_CTX_FLAGS_SERVER_STARTUP;
 
-    if (server.enable_debug_cmd) {
+    /* If debug commands are completely enabled */
+    if (server.enable_debug_cmd == PROTECTED_ACTION_ALLOWED_YES) {
         flags |= REDISMODULE_CTX_FLAGS_DEBUG_ENABLED;
     }
 
