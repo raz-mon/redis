@@ -3725,7 +3725,6 @@ char *redisBuildIdString(void);
 
 /* Commands prototypes */
 void authCommand(client *c);
-void internalAuthCommand(client *c);
 void pingCommand(client *c);
 void echoCommand(client *c);
 void commandCommand(client *c);

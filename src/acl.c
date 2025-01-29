@@ -3199,6 +3199,33 @@ void addReplyCommandCategories(client *c, struct redisCommand *cmd) {
     setDeferredSetLen(c, flaglen, flagcount);
 }
 
+/* When successful, initiates an internal connection, that is able to execute
+ * internal commands (see CMD_INTERNAL). */
+static void internalAuth(client *c) {
+    if (server.cluster == NULL) {
+        addReplyError(c, "Cannot authenticate as an internal connection on non-cluster instances");
+        return;
+    }
+
+    sds password = c->argv[2]->ptr;
+
+    /* Get internal secret. */
+    size_t len = -1;
+    const char *internal_secret = clusterGetSecret(&len);
+    if (sdslen(password) != len) {
+        addReplyError(c, "-WRONGPASS invalid internal password");
+        return;
+    }
+    if (!memcmp(internal_secret, password, len)) {
+        c->flags |= CLIENT_INTERNAL;
+        /* No further authentication is needed. */
+        c->authenticated = 1;
+        addReply(c, shared.ok);
+    } else {
+        addReplyError(c, "-WRONGPASS invalid internal password");
+    }
+}
+
 /* AUTH <password>
  * AUTH <username> <password> (Redis >= 6.0 form)
  *
@@ -3232,6 +3259,14 @@ void authCommand(client *c) {
         username = c->argv[1];
         password = c->argv[2];
         redactClientCommandArgument(c, 2);
+
+        /* Handle internal authentication commands.
+         * Note: No user-defined ACL user can have this username (no spaces
+         * aloud), thus we know that this is an internal authentication request. */
+        if (!strcmp(username->ptr, "internal connection")) {
+            internalAuth(c);
+            return;
+        }
     }
 
     robj *err = NULL;
@@ -3242,37 +3277,6 @@ void authCommand(client *c) {
         addAuthErrReply(c, err);
     }
     if (err) decrRefCount(err);
-}
-
-/* INTERNALAUTH <password>
- *
- * Initiates an internal connection, that is able to execute internal flagged
- * commands. */
-void internalAuthCommand(client *c) {
-    if (server.cluster == NULL) {
-        addReplyError(c, "Command not available on non-cluster instances");
-        return;
-    }
-    /* Always redact the second argument (password). */
-    redactClientCommandArgument(c, 1);
-
-    sds password = c->argv[1]->ptr;
-
-    /* Get internal secret. */
-    size_t len = -1;
-    const char *internal_secret = clusterGetSecret(&len);
-    if (sdslen(password) != len) {
-        addReplyError(c, "-WRONGPASS invalid internal password");
-        return;
-    }
-    if (!memcmp(internal_secret, password, len)) {
-        c->flags |= CLIENT_INTERNAL;
-        /* No further authentication is needed. */
-        c->authenticated = 1;
-        addReply(c, shared.ok);
-    } else {
-        addReplyError(c, "-WRONGPASS invalid internal password");
-    }
 }
 
 /* Set the password for the "default" ACL user. This implements supports for

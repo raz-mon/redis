@@ -10,12 +10,12 @@ start_cluster 1 0 [list config_lines $modules] {
     }
 
     test {Wrong internalsecret fails authentication} {
-        assert_error {*WRONGPASS invalid internal password*} {r internalauth 123}
+        assert_error {*WRONGPASS invalid internal password*} {r auth "internal connection" 123}
     }
 
     test {Internal connection basic flow} {
         set reply [r internalauth.getinternalsecret]
-        assert_equal {OK} [r internalauth $reply]
+        assert_equal {OK} [r auth "internal connection" $reply]
         assert_equal {OK} [r internalauth.internalcommand]
     }
 }
@@ -24,9 +24,9 @@ start_server {} {
     r module load $testmodule
 
     # On non-cluster mode, the internal secret does not exist, nor is the
-    # internalauth command available
+    # auth command available
     assert_error {*unknown command*} {r internalauth.internalcommand}
-    assert_error {*Command not available on non-cluster instances*} {r internalauth somepassword}
+    assert_error {*Cannot authenticate as an internal connection on non-cluster instances*} {r auth "internal connection" somepassword}
     # TODO: Return this line once #13763 is merged
     # assert_error {*ERR no internal secret available*} {r internalauth.getinternalsecret}
 
@@ -54,7 +54,7 @@ start_cluster 1 0 [list config_lines $modules] {
         # -------------------- Internal connection --------------------
         # Non-empty response for non-internal connections.
         set reply [r internalauth.getinternalsecret]
-        assert_equal {OK} [r internalauth $reply]
+        assert_equal {OK} [r auth "internal connection" $reply]
 
         # `COMMAND DOCS <cmd>` returns a correct response.
         assert_match {*internalauth.internalcommand*} [r command docs internalauth.internalcommand]
@@ -73,11 +73,12 @@ start_cluster 1 0 [list config_lines $modules] {
 
     test {No authentication needed for internal connections} {
         # Authenticate with a user that does not have permissions to any command
-        r acl setuser David on >123 &* ~* -@all +internalauth +internalauth.getinternalsecret
+        r acl setuser David on >123 &* ~* -@all +auth +internalauth.getinternalsecret
         assert_equal {OK} [r auth David 123]
 
         set reply [r internalauth.getinternalsecret]
-        assert_equal {OK} [r internalauth $reply]
+        assert_equal {OK} [r auth "internal connection" $reply]
+        # Execute a command that David does not have permissions to
         assert_equal {OK} [r internalauth.internalcommand]
     }
 }
@@ -91,7 +92,7 @@ start_cluster 1 0 [list config_lines $modules] {
 
         # Authenticate as an internal connection.
         set reply [r internalauth.getinternalsecret]
-        assert_equal {OK} [r internalauth $reply]
+        assert_equal {OK} [r auth "internal connection" $reply]
 
         # Succeed
         assert_equal {OK} [r internalauth.internal_rmcall_withclient internalauth.internalcommand]
@@ -117,7 +118,7 @@ start_cluster 1 0 [list config_lines $modules] {
     test {AOF executes internal commands successfully} {
         # Authenticate as an internal connection
         set reply [r internalauth.getinternalsecret]
-        assert_equal {OK} [r internalauth $reply]
+        assert_equal {OK} [r auth "internal connection" $reply]
 
         # Call an internal writing command
         assert_equal {OK} [r internalauth.internal_rmcall_replicated set x 5]
@@ -139,7 +140,7 @@ start_cluster 1 0 [list config_lines $modules] {
 
         # Even after authenticating as an internal connection
         set reply [r internalauth.getinternalsecret]
-        assert_equal {OK} [r internalauth $reply]
+        assert_equal {OK} [r auth "internal connection" $reply]
         assert_error {*not allowed from script*} {r eval {redis.call('internalauth.internalcommand')} 0}
 
         # Internal commands ARE shown in monitor output
@@ -161,7 +162,7 @@ start_cluster 1 1 [list config_lines $modules] {
     test {Setup master} {
         # Authenticate as an internal connection
         set reply [$master internalauth.getinternalsecret]
-        assert_equal {OK} [$master internalauth $reply]
+        assert_equal {OK} [$master auth "internal connection" $reply]
     }
 
     test {Slaves successfully execute internal commands from replication link} {
@@ -206,7 +207,7 @@ start_cluster 1 0 [list config_lines $modules] {
     test {Internal commands are reported in the slowlog} {
         # Authenticate as an internal connection
         set reply [r internalauth.getinternalsecret]
-        assert_equal {OK} [r internalauth $reply]
+        assert_equal {OK} [r auth "internal connection" $reply]
 
         # Set up slowlog to log all commands
         r config set slowlog-log-slower-than 0
