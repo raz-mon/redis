@@ -1151,7 +1151,7 @@ int64_t commandFlagsFromString(char *s) {
         else if (!strcasecmp(t,"no-cluster")) flags |= CMD_MODULE_NO_CLUSTER;
         else if (!strcasecmp(t,"no-mandatory-keys")) flags |= CMD_NO_MANDATORY_KEYS;
         else if (!strcasecmp(t,"allow-busy")) flags |= CMD_ALLOW_BUSY;
-        else if (!strcasecmp(t, "internal")) flags |= (CMD_INTERNAL|CMD_NOSCRIPT); // We disallow internal commands in scripts.
+        else if (!strcasecmp(t, "internal")) flags |= (CMD_INTERNAL|CMD_NOSCRIPT); /* We disallow internal commands in scripts. */
         else break;
     }
     sdsfreesplitres(tokens,count);
@@ -1236,6 +1236,9 @@ RedisModuleCommand *moduleCreateCommandProxy(struct RedisModule *module, sds dec
  *                     RM_Yield.
  * * **"getchannels-api"**: The command implements the interface to return
  *                          the arguments that are channels.
+ * * **"internal"**: Internal command, that should not be exposed to the user.
+ *                   For example, module commands that are called by the module,
+ *                   that do not perform ACL validations (that were done earlier)
  *
  * The last three parameters specify which arguments of the new command are
  * Redis keys. See https://redis.io/commands/command for more information.
@@ -13401,7 +13404,10 @@ int RM_RdbSave(RedisModuleCtx *ctx, RedisModuleRdbStream *stream, int flags) {
     return REDISMODULE_OK;
 }
 
-/* Returns the internal secret of the cluster. */
+/* Returns the internal secret of the cluster.
+ * Should be used to authenticate as an internal connection to a shard in the
+ * cluster, and by thus gaining the permissions to execute internal commands.
+ */
 const char* RM_GetInternalSecret(RedisModuleCtx *ctx, size_t *len) {
     UNUSED(ctx);
     serverAssert(len != NULL);
