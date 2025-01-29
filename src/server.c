@@ -5207,39 +5207,39 @@ void getKeysSubcommand(client *c) {
     getKeysSubcommandImpl(c, 0);
 }
 
-/* COMMAND (no args) */
-void commandCommand(client *c) {
+void genericCommandCommand(client *c, int count_only) {
     dictIterator *di;
     dictEntry *de;
-    int numcmds = 0;
+    void *len = NULL;
+    int count = 0;
 
-    void *replylen = addReplyDeferredLen(c);
+    if (!count_only)
+        len = addReplyDeferredLen(c);
+
     di = dictGetIterator(server.commands);
     while ((de = dictNext(di)) != NULL) {
         struct redisCommand *cmd = dictGetVal(de);
-        if (commandVisibleForClient(c, cmd)) {
-            addReplyCommandInfo(c, cmd);
-            numcmds++;
-        }
+        if (!commandVisibleForClient(c, cmd))
+            continue;
+        if (!count_only)
+            addReplyCommandInfo(c, dictGetVal(de));
+        count++;
     }
     dictReleaseIterator(di);
-    setDeferredArrayLen(c,replylen,numcmds);
+    if (count_only)
+        addReplyLongLong(c, count);
+    else
+        setDeferredArrayLen(c, len, count);
+}
+
+/* COMMAND (no args) */
+void commandCommand(client *c) {
+    genericCommandCommand(c, 0);
 }
 
 /* COMMAND COUNT */
 void commandCountCommand(client *c) {
-    dictIterator *di;
-    dictEntry *de;
-    long long numcmds = 0;
-
-    di = dictGetIterator(server.commands);
-    while ((de = dictNext(di)) != NULL) {
-        if (commandVisibleForClient(c, dictGetVal(de))) {
-            numcmds++;
-        }
-    }
-    dictReleaseIterator(di);
-    addReplyLongLong(c,numcmds);
+    genericCommandCommand(c, 1);
 }
 
 typedef enum {
@@ -5371,20 +5371,7 @@ void commandInfoCommand(client *c) {
     int i;
 
     if (c->argc == 2) {
-        dictIterator *di;
-        dictEntry *de;
-        int numcmds = 0;
-        void *replylen = addReplyDeferredLen(c);
-        di = dictGetIterator(server.commands);
-        while ((de = dictNext(di)) != NULL) {
-            struct redisCommand *cmd = dictGetVal(de);
-            if (commandVisibleForClient(c, cmd)) {
-                addReplyCommandInfo(c, cmd);
-                numcmds++;
-            }
-        }
-        dictReleaseIterator(di);
-        setDeferredArrayLen(c,replylen,numcmds);
+        genericCommandCommand(c, 0);
     } else {
         addReplyArrayLen(c, c->argc-2);
         for (i = 2; i < c->argc; i++) {
