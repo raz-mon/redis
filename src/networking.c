@@ -3099,6 +3099,7 @@ sds catClientInfoString(sds s, client *client) {
     if (client->flags & CLIENT_NO_EVICT) *p++ = 'e';
     if (client->flags & CLIENT_NO_TOUCH) *p++ = 'T';
     if (client->flags & CLIENT_REPL_RDB_CHANNEL) *p++ = 'C';
+    if (client->flags & CLIENT_INTERNAL) *p++ = 'I';
     if (p == flags) *p++ = 'N';
     *p++ = '\0';
 
@@ -4171,6 +4172,7 @@ int getClientType(client *c) {
     if ((c->flags & CLIENT_SLAVE) && !(c->flags & CLIENT_MONITOR))
         return CLIENT_TYPE_SLAVE;
     if (c->flags & CLIENT_PUBSUB) return CLIENT_TYPE_PUBSUB;
+    if (c->flags & CLIENT_INTERNAL) return CLIENT_TYPE_INTERNAL;
     return CLIENT_TYPE_NORMAL;
 }
 
