@@ -492,7 +492,7 @@ void debugCommand(client *c) {
 "    Enable or disable the main dict and expire dict resizing.",
 "SCRIPT <LIST|<sha>>",
 "    Output SHA and content of all scripts or of a specific script with its SHA.",
-"MARK-INTERNAL-CLIENT",
+"MARK-INTERNAL-CLIENT [UNMARK]",
 "    Promote the current connection to an internal connection.",
 NULL
         };

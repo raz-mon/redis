@@ -94,7 +94,7 @@ start_cluster 1 0 [list config_lines $modules] {
 start_cluster 1 0 [list config_lines $modules] {
     set r [srv 0 client]
 
-    test {RM_Call of internal commands succeeds only for internal connections} {
+    test {RM_Call of internal commands succeeds only for internal connections, and overrised user attachment} {
         # Fail before authenticating as an internal connection.
         assert_error {*unknown command*} {r internalauth.internal_rmcall internalauth.internalcommand}
 
@@ -102,8 +102,9 @@ start_cluster 1 0 [list config_lines $modules] {
         set reply [r internalauth.getinternalsecret]
         assert_equal {OK} [r auth "internal connection" $reply]
 
-        # Succeed
-        assert_equal {OK} [r internalauth.internal_rmcall internalauth.internalcommand]
+        # Succeeds, since the user is overridden (otherwise would have failed
+        # since there is no user attached).
+        assert_equal {OK} [r internalauth.internal_rmcall_withuser internalauth.internalcommand]
     }
 }
 
