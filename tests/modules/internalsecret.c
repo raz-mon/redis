@@ -26,9 +26,10 @@ int InternalAuth_InternalCommand(RedisModuleCtx *ctx, RedisModuleString **argv, 
 }
 
 typedef enum {
-    RM_CALL_WITHCLIENT = 0,
-    RM_CALL_WITHDETACHEDCLIENT = 1,
-    RM_CALL_REPLICATED = 2
+    RM_CALL_REGULAR = 0,
+    RM_CALL_WITHUSER = 1,
+    RM_CALL_WITHDETACHEDCLIENT = 2,
+    RM_CALL_REPLICATED = 3
 } RMCallMode;
 
 int internall_rm_call(RedisModuleCtx *ctx, RedisModuleString **argv, int argc, RMCallMode mode) {
@@ -40,7 +41,11 @@ int internall_rm_call(RedisModuleCtx *ctx, RedisModuleString **argv, int argc, R
     const char* cmd = RedisModule_StringPtrLen(argv[1], NULL);
 
     switch (mode) {
-        case RM_CALL_WITHCLIENT:
+        case RM_CALL_REGULAR:
+            // Regular call, with the unrestricted user.
+            rep = RedisModule_Call(ctx, cmd, "v", argv + 2, argc - 2);
+            break;
+        case RM_CALL_WITHUSER:
             // Simply call the command with the current client.
             rep = RedisModule_Call(ctx, cmd, "vCE", argv + 2, argc - 2);
             break;
@@ -52,7 +57,7 @@ int internall_rm_call(RedisModuleCtx *ctx, RedisModuleString **argv, int argc, R
                 return REDISMODULE_ERR;
             }
             // Dispatch the command with the detached context
-            rep = RedisModule_Call(detached_ctx, cmd, "vCE", argv + 2, argc - 2);
+            rep = RedisModule_Call(detached_ctx, cmd, "vE", argv + 2, argc - 2);
             break;
         case RM_CALL_REPLICATED:
             // Replicated call (verbatim), do not use the current client
@@ -87,8 +92,12 @@ int internall_rm_call(RedisModuleCtx *ctx, RedisModuleString **argv, int argc, R
     return REDISMODULE_OK;
 }
 
-int internal_rmcall_withclient(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
-    return internall_rm_call(ctx, argv, argc, RM_CALL_WITHCLIENT);
+int internal_rmcall(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+    return internall_rm_call(ctx, argv, argc, RM_CALL_REGULAR);
+}
+
+int internal_rmcall_withuser(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+    return internall_rm_call(ctx, argv, argc, RM_CALL_WITHUSER);
 }
 
 int internal_rmcall_detachedcontext(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
@@ -118,8 +127,12 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) 
         InternalAuth_InternalCommand,"internal",0,0,0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
-    if (RedisModule_CreateCommand(ctx,"internalauth.internal_rmcall_withclient",
-        internal_rmcall_withclient,"write internal",0,0,0) == REDISMODULE_ERR)
+    if (RedisModule_CreateCommand(ctx,"internalauth.internal_rmcall",
+        internal_rmcall,"write internal",0,0,0) == REDISMODULE_ERR)
+        return REDISMODULE_ERR;
+
+    if (RedisModule_CreateCommand(ctx,"internalauth.internal_rmcall_withuser",
+        internal_rmcall_withuser,"write internal",0,0,0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx,"internalauth.internal_rmcall_detachedcontext",

@@ -3719,7 +3719,8 @@ void call(client *c, int flags) {
      * or we are currently in the process of loading AOF. */
     if (update_command_stats && !reprocessing_command   &&
         !(c->cmd->flags & (CMD_SKIP_MONITOR|CMD_ADMIN)) &&
-        commandVisibleForClient(c, real_cmd)) {
+        commandVisibleForClient(c, real_cmd))
+    {
         robj **argv = c->original_argv ? c->original_argv : c->argv;
         int argc = c->original_argv ? c->original_argc : c->argc;
         replicationFeedMonitors(c,server.monitors,c->db->id,argv,argc);
@@ -3998,6 +3999,7 @@ int processCommand(client *c) {
      * we do not have to repeat the same checks */
     if (!client_reprocessing_command) {
         struct redisCommand *cmd = c->iolookedcmd ? c->iolookedcmd : lookupCommand(c->argv, c->argc);
+
         if (!cmd) {
             /* Handle possible security attacks. */
             if (!strcasecmp(c->argv[0]->ptr,"host:") || !strcasecmp(c->argv[0]->ptr,"post")) {
@@ -4005,6 +4007,13 @@ int processCommand(client *c) {
                 return C_ERR;
             }
         }
+
+        /* Internal commands seem unexistent to non-internal connections.
+         * masters and AOF loads are implicitly internal. */
+        if (cmd && (cmd->flags & CMD_INTERNAL) && !((c->flags & CLIENT_INTERNAL) || mustObeyClient(c))) {
+            cmd = NULL;
+        }
+
         c->cmd = c->lastcmd = c->realcmd = cmd;
         sds err;
         if (!commandCheckExistence(c, &err)) {
@@ -4074,18 +4083,6 @@ int processCommand(client *c) {
         sds msg = getAclErrorMessage(acl_retval, c->user, c->cmd, c->argv[acl_errpos]->ptr, 0);
         rejectCommandFormat(c, "-NOPERM %s", msg);
         sdsfree(msg);
-        return C_OK;
-    }
-
-    if ((c->cmd->flags & CMD_INTERNAL) && !((c->flags & CLIENT_INTERNAL) || mustObeyClient(c))) {
-        sds args = sdsempty();
-        for (int i = 1; i < c->argc && sdslen(args) < 128; i++)
-            args = sdscatprintf(args, "'%.*s' ", 128-(int)sdslen(args), (char*)c->argv[i]->ptr);
-        sds err = sdsnew(NULL);
-        err = sdscatprintf(err, "unknown command '%.128s', with args beginning with: %s",
-                            (char*)c->argv[0]->ptr, args);
-        sdsfree(args);
-        rejectCommandSds(c, err);
         return C_OK;
     }
 

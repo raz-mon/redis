@@ -1890,10 +1890,6 @@ int ACLCheckAllUserCommandPerm(user *u, struct redisCommand *cmd, robj **argv, i
 
 /* High level API for checking if a client can execute the queued up command */
 int ACLCheckAllPerm(client *c, int *idxptr) {
-    /* Internal connections bypass the ACL valiation */
-    if (c->flags & CLIENT_INTERNAL) {
-        return ACL_OK;
-    }
     return ACLCheckAllUserCommandPerm(c->user, c->cmd, c->argv, c->argc, idxptr);
 }
 
@@ -3216,10 +3212,13 @@ static void internalAuth(client *c) {
         addReplyError(c, "-WRONGPASS invalid internal password");
         return;
     }
-    if (!memcmp(internal_secret, password, len)) {
+    if (!time_independent_strcmp((char *)internal_secret, (char *)password, len)) {
         c->flags |= CLIENT_INTERNAL;
         /* No further authentication is needed. */
         c->authenticated = 1;
+        /* Set the user to the unrestricted user. */
+        c->user = NULL;
+        // TODO: Do we need to call `moduleNotifyUserChanged()` here?
         addReply(c, shared.ok);
     } else {
         addReplyError(c, "-WRONGPASS invalid internal password");
@@ -3262,7 +3261,7 @@ void authCommand(client *c) {
 
         /* Handle internal authentication commands.
          * Note: No user-defined ACL user can have this username (no spaces
-         * aloud), thus we know that this is an internal authentication request. */
+         * allowed), thus no conflicts with ACL possible. */
         if (!strcmp(username->ptr, "internal connection")) {
             internalAuth(c);
             return;

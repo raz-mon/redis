@@ -23,17 +23,25 @@ start_cluster 1 0 [list config_lines $modules] {
 start_server {} {
     r module load $testmodule
 
-    # On non-cluster mode, the internal secret does not exist, nor is the
-    # auth command available
-    assert_error {*unknown command*} {r internalauth.internalcommand}
-    assert_error {*Cannot authenticate as an internal connection on non-cluster instances*} {r auth "internal connection" somepassword}
-    # TODO: Return this line once #13763 is merged
-    # assert_error {*ERR no internal secret available*} {r internalauth.getinternalsecret}
+    test {Internal secret is not available in non-cluster mode} {
+        # On non-cluster mode, the internal secret does not exist, nor is the
+        # auth command available
+        assert_error {*unknown command*} {r internalauth.internalcommand}
+        assert_error {*Cannot authenticate as an internal connection on non-cluster instances*} {r auth "internal connection" somepassword}
+        # TODO: Return this line once #13763 is merged
+        # assert_error {*ERR no internal secret available*} {r internalauth.getinternalsecret}
+    }
 
-    # After promoting the connection to an internal one via a debug command,
-    # internal commands succeed.
-    r debug promote-conn-internal
-    assert_equal {OK} [r internalauth.internalcommand]
+    test {marking and unmarking a connection as internal via a debug command} {
+        # After marking the connection to an internal one via a debug command,
+        # internal commands succeed.
+        r debug mark-internal-client
+        assert_equal {OK} [r internalauth.internalcommand]
+
+        # After unmarking the connection, internal commands fail.
+        r debug mark-internal-client unmark
+        assert_error {*unknown command*} {r internalauth.internalcommand}
+    }
 }
 
 start_cluster 1 0 [list config_lines $modules] {
@@ -78,7 +86,7 @@ start_cluster 1 0 [list config_lines $modules] {
 
         set reply [r internalauth.getinternalsecret]
         assert_equal {OK} [r auth "internal connection" $reply]
-        # Execute a command that David does not have permissions to
+        # Execute a command for which David does not have permission
         assert_equal {OK} [r internalauth.internalcommand]
     }
 }
@@ -88,14 +96,14 @@ start_cluster 1 0 [list config_lines $modules] {
 
     test {RM_Call of internal commands succeeds only for internal connections} {
         # Fail before authenticating as an internal connection.
-        assert_error {*unknown command*} {r internalauth.internal_rmcall_withclient internalauth.internalcommand}
+        assert_error {*unknown command*} {r internalauth.internal_rmcall internalauth.internalcommand}
 
         # Authenticate as an internal connection.
         set reply [r internalauth.getinternalsecret]
         assert_equal {OK} [r auth "internal connection" $reply]
 
         # Succeed
-        assert_equal {OK} [r internalauth.internal_rmcall_withclient internalauth.internalcommand]
+        assert_equal {OK} [r internalauth.internal_rmcall internalauth.internalcommand]
     }
 }
 
@@ -258,7 +266,7 @@ start_cluster 1 0 [list config_lines $modules] {
         assert_error {*unknown command*} {r internalauth.internalcommand}
 
         # Promote the connection to internal
-        r debug promote-conn-internal
+        r debug mark-internal-client
 
         # Succeed executing an internal command
         assert_equal {OK} [r internalauth.internalcommand]

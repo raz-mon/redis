@@ -3367,7 +3367,7 @@ void cliLoadPreferences(void) {
  * - SENTINEL CONFIG SET sentinel-pass password, SENTINEL CONFIG SET sentinel-user username 
  * - SENTINEL SET <mastername> auth-pass password, SENTINEL SET <mastername> auth-user username */
 static int isSensitiveCommand(int argc, char **argv) {
-    if ((!strcasecmp(argv[0],"auth"))) {
+    if (!strcasecmp(argv[0],"auth")) {
         return 1;
     } else if (argc > 1 &&
         !strcasecmp(argv[0],"acl") && (

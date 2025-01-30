@@ -1151,7 +1151,7 @@ int64_t commandFlagsFromString(char *s) {
         else if (!strcasecmp(t,"no-cluster")) flags |= CMD_MODULE_NO_CLUSTER;
         else if (!strcasecmp(t,"no-mandatory-keys")) flags |= CMD_NO_MANDATORY_KEYS;
         else if (!strcasecmp(t,"allow-busy")) flags |= CMD_ALLOW_BUSY;
-        else if (!strcasecmp(t, "internal")) flags |= (CMD_INTERNAL|CMD_NOSCRIPT); /* We disallow internal commands in scripts. */
+        else if (!strcasecmp(t, "internal")) flags |= (CMD_INTERNAL|CMD_NOSCRIPT); /* We also disallow internal commands in scripts. */
         else break;
     }
     sdsfreesplitres(tokens,count);
@@ -1236,9 +1236,9 @@ RedisModuleCommand *moduleCreateCommandProxy(struct RedisModule *module, sds dec
  *                     RM_Yield.
  * * **"getchannels-api"**: The command implements the interface to return
  *                          the arguments that are channels.
- * * **"internal"**: Internal command, that should not be exposed to the user.
- *                   For example, module commands that are called by the module,
- *                   that do not perform ACL validations (that were done earlier)
+ * * **"internal"**: Internal command, one that should not be exposed to the user connections.
+ *                   For example, module commands that are called by the modules,
+ *                   commands that do not perform ACL validations (relying on earlier checks)
  *
  * The last three parameters specify which arguments of the new command are
  * Redis keys. See https://redis.io/commands/command for more information.
@@ -6399,10 +6399,6 @@ RedisModuleCallReply *RM_Call(RedisModuleCtx *ctx, const char *cmdname, const ch
     if (ctx->module) ctx->module->in_call++;
 
     user *user = NULL;
-    // Internal connections should not be restricted by the user
-    if (ctx->client->flags & CLIENT_INTERNAL) {
-        flags &= ~REDISMODULE_ARGV_RUN_AS_USER;
-    }
     if (flags & REDISMODULE_ARGV_RUN_AS_USER) {
         user = ctx->user ? ctx->user->user : ctx->client->user;
         if (!user) {
@@ -6434,6 +6430,17 @@ RedisModuleCallReply *RM_Call(RedisModuleCtx *ctx, const char *cmdname, const ch
      * if necessary.
      */
     c->cmd = c->lastcmd = c->realcmd = lookupCommand(c->argv,c->argc);
+
+    /* If this is an internal command meant to be executed as the attached user,
+     * suceed only if the client is internal, or must be obeyed (master, AOF). */
+    if (c->cmd &&
+        (flags & REDISMODULE_ARGV_RUN_AS_USER) &&
+        (c->cmd->flags & CMD_INTERNAL) &&
+        !((ctx->client->flags & CLIENT_INTERNAL) || mustObeyClient(ctx->client)))
+    {
+        c->cmd = c->lastcmd = c->realcmd = NULL;
+    }
+
     sds err;
     if (!commandCheckExistence(c, error_as_call_replies? &err : NULL)) {
         errno = ENOENT;
@@ -6561,19 +6568,6 @@ RedisModuleCallReply *RM_Call(RedisModuleCtx *ctx, const char *cmdname, const ch
         int acl_errpos;
         int acl_retval;
 
-        // At this point, we already know that the client is not internal.
-        if (c->cmd->flags & CMD_INTERNAL) {
-            if (mustObeyClient(ctx->client)) {
-                goto acl_ok;
-            } else {
-                // Non-internal connections cannot execute internal commands.
-                sds msg = sdscatprintf(sdsempty(), "unknown command '%.128s'", c->cmd->declared_name);
-                reply = callReplyCreateError(msg, ctx);
-                errno = ENOENT;
-                goto cleanup;
-            }
-        }
-
         acl_retval = ACLCheckAllUserCommandPerm(user,c->cmd,c->argv,c->argc,&acl_errpos);
         if (acl_retval != ACL_OK) {
             sds object = (acl_retval == ACL_DENIED_CMD) ? sdsdup(c->cmd->fullname) : sdsdup(c->argv[acl_errpos]->ptr);
@@ -6589,7 +6583,6 @@ RedisModuleCallReply *RM_Call(RedisModuleCtx *ctx, const char *cmdname, const ch
             goto cleanup;
         }
     }
-acl_ok:
 
     /* If this is a Redis Cluster node, we need to make sure the module is not
      * trying to access non-local keys, with the exception of commands
@@ -13405,8 +13398,8 @@ int RM_RdbSave(RedisModuleCtx *ctx, RedisModuleRdbStream *stream, int flags) {
 }
 
 /* Returns the internal secret of the cluster.
- * Should be used to authenticate as an internal connection to a shard in the
- * cluster, and by thus gaining the permissions to execute internal commands.
+ * Should be used to authenticate as an internal connection to a node in the
+ * cluster, and by that gain the permissions to execute internal commands.
  */
 const char* RM_GetInternalSecret(RedisModuleCtx *ctx, size_t *len) {
     UNUSED(ctx);
