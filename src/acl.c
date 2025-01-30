@@ -9,6 +9,7 @@
 #include "server.h"
 #include "cluster.h"
 #include "sha256.h"
+#include <stdbool.h>
 #include <fcntl.h>
 #include <ctype.h>
 
@@ -3216,9 +3217,11 @@ static void internalAuth(client *c) {
         c->flags |= CLIENT_INTERNAL;
         /* No further authentication is needed. */
         c->authenticated = 1;
-        /* Set the user to the unrestricted user. */
-        c->user = NULL;
-        // TODO: Do we need to call `moduleNotifyUserChanged()` here?
+        /* Set the user to the unrestricted user, if it is not already set (default). */
+        if (c->user != NULL) {
+            c->user = NULL;
+            moduleNotifyUserChanged(c);
+        }
         addReply(c, shared.ok);
     } else {
         addReplyError(c, "-WRONGPASS invalid internal password");

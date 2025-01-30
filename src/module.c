@@ -6432,7 +6432,7 @@ RedisModuleCallReply *RM_Call(RedisModuleCtx *ctx, const char *cmdname, const ch
     c->cmd = c->lastcmd = c->realcmd = lookupCommand(c->argv,c->argc);
 
     /* If this is an internal command meant to be executed as the attached user,
-     * suceed only if the client is internal, or must be obeyed (master, AOF). */
+     * succeed only if the client is internal, or must be obeyed (master, AOF). */
     if (c->cmd &&
         (flags & REDISMODULE_ARGV_RUN_AS_USER) &&
         (c->cmd->flags & CMD_INTERNAL) &&
