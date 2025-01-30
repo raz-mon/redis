@@ -9,7 +9,6 @@
 #include "server.h"
 #include "cluster.h"
 #include "sha256.h"
-#include <stdbool.h>
 #include <fcntl.h>
 #include <ctype.h>
 
