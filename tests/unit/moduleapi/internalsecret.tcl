@@ -28,8 +28,7 @@ start_server {} {
         # auth command available
         assert_error {*unknown command*} {r internalauth.internalcommand}
         assert_error {*Cannot authenticate as an internal connection on non-cluster instances*} {r auth "internal connection" somepassword}
-        # TODO: Return this line once #13763 is merged
-        # assert_error {*ERR no internal secret available*} {r internalauth.getinternalsecret}
+        assert_error {*ERR no internal secret available*} {r internalauth.getinternalsecret}
     }
 
     test {marking and unmarking a connection as internal via a debug command} {
